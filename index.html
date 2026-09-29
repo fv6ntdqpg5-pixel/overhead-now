@@ -1,0 +1,380 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>Overhead Now</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+/* Layout: an operations console. Summary strip, then the world map, then two panels (sky chart + what's overhead), then the geostationary dish test and ISS pass list. */
+:root{
+  --bg:#0b1020; --panel:#121a30; --line:#26314f; --fg:#e6ebf7; --muted:#8f9bb8;
+  --accent:#ffb347; --iss:#ffffff; --starlink:#4f7fd8; --nav:#f2c94c; --geo:#3ddc97; --other:#7a86a8; --up:#ff6b6b;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){
+  --bg:#f3f4f8; --panel:#ffffff; --line:#d5dae8; --fg:#131a2e; --muted:#5b6582;
+  --accent:#b8600a; --iss:#111111; --starlink:#2f5fc4; --nav:#a67c00; --geo:#158a5c; --other:#8b95b3; --up:#c62828;
+  color-scheme:light;}}
+:root[data-theme="light"]{
+  --bg:#f3f4f8; --panel:#ffffff; --line:#d5dae8; --fg:#131a2e; --muted:#5b6582;
+  --accent:#b8600a; --iss:#111111; --starlink:#2f5fc4; --nav:#a67c00; --geo:#158a5c; --other:#8b95b3; --up:#c62828;
+  color-scheme:light;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);margin:0;padding-block:20px 48px;padding-inline:16px;line-height:1.45}
+.wrap{max-width:1100px;margin:0 auto;display:grid;gap:20px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,6vw,52px);line-height:1;margin:0;letter-spacing:.01em;text-wrap:balance}
+h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0 0 8px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+p{margin:0;max-width:65ch}
+.sub{color:var(--muted);max-width:70ch}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.stat{border-top:2px solid var(--line);padding-top:8px}
+.stat b{font-family:var(--mono);font-size:26px;font-weight:500;display:block;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;min-width:0}
+.controls{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end}
+label{display:grid;gap:4px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+input,select{font:14px var(--mono);background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:120px}
+select{width:auto}
+canvas{width:100%;height:auto;display:block;border-radius:4px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:760px){.two{grid-template-columns:1fr}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-family:var(--body);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td.n{overflow:hidden;text-overflow:ellipsis;max-width:190px}
+.tscroll{overflow-x:auto;max-height:420px;overflow-y:auto}
+a{color:var(--accent)}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:3px;border:1px solid var(--line);color:var(--muted)}
+.vis{color:var(--geo);font-weight:500}
+.note{font-size:13px;color:var(--muted);margin-top:8px;max-width:70ch}
+.clock{font-family:var(--mono);color:var(--accent)}
+button{font:13px var(--body);background:var(--accent);color:var(--bg);border:0;border-radius:4px;padding:7px 12px;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dish{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.dish div{border:1px solid var(--line);border-radius:4px;padding:10px;font-family:var(--mono);font-size:13px}
+.dish b{display:block;font-size:24px;font-weight:500;margin:4px 0}
+.dish small{color:var(--muted);font-family:var(--body)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Overhead Now</h1>
+    <p class="sub">Every tracked, active satellite, propagated from its published orbital elements to this second, on a globe you can spin, plus the ones above your horizon right now. Pick any spot on Earth. Then go outside, or check the same pass on <a href="https://www.heavens-above.com" target="_blank" rel="noopener">Heavens-Above</a>, <a href="https://www.n2yo.com" target="_blank" rel="noopener">N2YO</a>, or NASA's <a href="https://spotthestation.nasa.gov" target="_blank" rel="noopener">Spot the Station</a>.</p>
+  </header>
+
+  <section class="strip" id="strip">
+    <div class="stat"><b id="sTotal">–</b><span>objects tracked</span></div>
+    <div class="stat"><b id="sUp">–</b><span>above your horizon</span></div>
+    <div class="stat"><b id="sStar">–</b><span>Starlink</span></div>
+    <div class="stat"><b id="sNav">–</b><span>GPS / GNSS</span></div>
+    <div class="stat"><b id="sGeo">–</b><span>geostationary</span></div>
+    <div class="stat"><b class="clock" id="sClock">–</b><span>UTC now</span></div>
+  </section>
+
+  <section class="panel">
+    <div class="controls">
+      <label>Preset <select id="preset">
+        <option value="27.12,-82.44">Nokomis, FL</option>
+        <option value="43.06,-88.40">Delafield, WI</option>
+        <option value="-0.18,-78.47">Quito, Ecuador</option>
+        <option value="64.84,-147.72">Fairbanks, AK</option>
+        <option value="51.51,-0.13">London</option>
+        <option value="-33.87,151.21">Sydney</option>
+        <option value="-77.85,166.67">McMurdo, Antarctica</option>
+        <option value="custom">Custom</option></select></label>
+      <label>Latitude <input id="lat" type="number" step="0.01" min="-90" max="90" value="27.12"></label>
+      <label>Longitude <input id="lon" type="number" step="0.01" min="-180" max="180" value="-82.44"></label>
+      <label>Min elevation ° <input id="minel" type="number" step="1" min="0" max="90" value="0" style="width:80px"></label>
+      <button id="pick" type="button">Tap the globe to set location</button>
+      <label>Show <select id="filter">
+        <option value="all">All</option><option value="starlink">Starlink only</option><option value="nav">GNSS only</option><option value="geo">Geostationary only</option><option value="big">ISS, CSS, Hubble</option></select></label>
+    </div>
+    <p class="note">Elements from CelesTrak, snapshot <span id="dataAge">–</span>. Propagation is SGP4, the same model every tracking site uses. Positions drift a few kilometers per day after the snapshot, which is why pass times still land within seconds for a week or more.</p>
+  </section>
+
+  <section class="panel">
+    <h2>The globe</h2>
+    <div class="controls" style="margin-bottom:10px">
+      <button id="spin" type="button">Pause spin</button>
+      <label>Zoom <input id="zoom" type="range" min="1.15" max="9" step="0.05" value="1.6" style="width:160px;padding:0"></label>
+      <label>View <select id="view">
+        <option value="me">Over your location</option>
+        <option value="np">Over the North Pole</option>
+        <option value="sp">Over the South Pole</option>
+        <option value="geo">Edge-on: geostationary ring</option></select></label>
+      <label>Trails <select id="trails"><option value="iss">ISS orbit</option><option value="none">None</option></select></label>
+    </div>
+    <canvas id="globe" width="1200" height="1200" aria-label="Rotatable globe with satellite positions" style="cursor:grab;touch-action:none;max-width:720px;margin:0 auto"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--iss)"></i>ISS / CSS / Hubble</span>
+      <span><i style="background:var(--starlink)"></i>Starlink</span>
+      <span><i style="background:var(--nav)"></i>GPS, GLONASS, Galileo, BeiDou</span>
+      <span><i style="background:var(--geo)"></i>Geostationary belt</span>
+      <span><i style="background:var(--other)"></i>Everything else</span>
+      <span><i style="background:var(--up)"></i>Above your horizon</span>
+    </div>
+    <p class="note">Drag to rotate, scroll or use the slider to zoom. To use your own spot, press the button above and tap it on the globe; the horizon list, sky chart, and ISS passes all update. Zoom out to about 7 and the geostationary ring appears 35,786 km above the equator, exactly where every satellite dish is aimed. Switch to the South Pole view: polar-orbit satellites cross Antarctica every few minutes.</p>
+  </section>
+
+  <div class="two">
+    <section class="panel">
+      <h2>Your sky right now</h2>
+      <canvas id="sky" width="800" height="800" aria-label="Sky chart of satellites above the horizon"></canvas>
+      <p class="note">Zenith at center, horizon at the edge, north up. The green arc is the geostationary belt: every TV dish in your town points at it. The largest dot is the ISS when it's up.</p>
+    </section>
+    <section class="panel">
+      <h2>Above your horizon</h2>
+      <div class="tscroll"><table><thead><tr><th>Name</th><th>NORAD</th><th>Az°</th><th>El°</th><th>Range km</th></tr></thead><tbody id="upList"></tbody></table></div>
+      <p class="note">Sorted by elevation. Click a NORAD number to see the same object on N2YO's independent tracker.</p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Dish test: one satellite, six latitudes</h2>
+    <p class="sub">GOES-19 sits over 75.2°W and never moves in the sky. From each city below, here is the angle above the horizon a dish must point to see it, computed live from its elements. On a flat plane the angle would fall off slowly with distance and never reach zero. On a sphere it hits the horizon near 81° latitude. Every satellite TV installer's tables agree with the second column.</p>
+    <div class="dish" id="dish" style="margin-top:12px"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Next ISS passes from your location</h2>
+    <div class="tscroll"><table><thead><tr><th>Start (local)</th><th>Rise az</th><th>Max el°</th><th>Set az</th><th>Duration</th><th>Naked eye</th></tr></thead><tbody id="passList"></tbody></table></div>
+    <p class="note">Next 3 days, passes above 10°. "Yes" means the station is in sunlight while your sky is dark, so it will look like a fast, bright, unblinking star. Compare against Spot the Station or Heavens-Above for the same dates; they will match to within seconds.</p>
+  </section>
+
+  <p class="note">Built from public data: orbital elements by <a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a> (T.S. Kelso), which republishes the U.S. Space Force catalog; propagation by <a href="https://github.com/shashwatak/satellite-js" target="_blank" rel="noopener">satellite.js</a>. Nothing here is estimated. Every number is reproducible by anyone with the same two lines of text per satellite.</p>
+</div>
+
+<script src="satellite.js"></script>
+<script src="tle.js"></script>
+<script src="coast.js"></script>
+<script>
+(function(){
+const S=satellite, D2R=Math.PI/180, R2D=180/Math.PI;
+const $=id=>document.getElementById(id);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// Build satrecs
+const sats=[];
+for(const [name,l1,l2] of window.TLE_DATA){
+  let rec; try{rec=S.twoline2satrec(l1,l2);}catch(e){continue;}
+  const mm=parseFloat(l2.substr(52,11));
+  let cat='other';
+  if(/^STARLINK/.test(name))cat='starlink';
+  else if(/^(NAVSTAR|GPS|GLONASS|COSMOS 2\d{3}.*GLONASS|GSAT0|GALILEO|BEIDOU)/.test(name))cat='nav';
+  else if(/^(ISS \(ZARYA\)|CSS \(TIANHE\)|HST)$/.test(name.trim()))cat='big';
+  else if(Math.abs(mm-1.0027)<0.01 && parseFloat(l2.substr(8,8))<15)cat='geo';
+  sats.push({name:name.trim(),id:parseInt(l1.substr(2,5)),rec,cat,lat:0,lon:0,alt:0,az:0,el:-90,rng:0,ok:true});
+}
+$('sTotal').textContent=sats.length.toLocaleString();
+$('sStar').textContent=sats.filter(s=>s.cat==='starlink').length.toLocaleString();
+$('sNav').textContent=sats.filter(s=>s.cat==='nav').length;
+$('sGeo').textContent=sats.filter(s=>s.cat==='geo').length;
+const upd=new Date(window.TLE_UPDATED);
+$('dataAge').textContent=upd.toUTCString().replace(' GMT',' UTC');
+const iss=sats.find(s=>s.id===25544);
+const goes=sats.find(s=>s.id===60133)||sats.find(s=>s.name.startsWith('GOES 19'))||sats.find(s=>s.cat==='geo');
+
+let obs={lat:27.12,lon:-82.44};
+function readObs(){obs.lat=+$('lat').value||0;obs.lon=+$('lon').value||0;}
+$('preset').addEventListener('change',e=>{const v=e.target.value;if(v==='custom')return;const [a,b]=v.split(',');$('lat').value=a;$('lon').value=b;readObs();if(viewMode==='me')applyView();computePasses();tick();});
+['lat','lon'].forEach(id=>$(id).addEventListener('change',()=>{$('preset').value='custom';readObs();if(viewMode==='me')applyView();computePasses();tick();}));
+['minel','filter'].forEach(id=>$(id).addEventListener('change',tick));
+
+function propagateAll(now){
+  const gmst=S.gstime(now);
+  const o={latitude:obs.lat*D2R,longitude:obs.lon*D2R,height:0.01};
+  for(const s of sats){
+    let pv; try{pv=S.propagate(s.rec,now);}catch(e){s.ok=false;continue;}
+    if(!pv||!pv.position||typeof pv.position!=='object'){s.ok=false;continue;}
+    const p=pv.position; if(!isFinite(p.x)){s.ok=false;continue;}
+    s.ok=true;
+    const g=S.eciToGeodetic(p,gmst);
+    s.lat=g.latitude*R2D; s.lon=((g.longitude*R2D+540)%360)-180; s.alt=g.height;
+    const la=S.ecfToLookAngles(o,S.eciToEcf(p,gmst));
+    s.az=(la.azimuth*R2D+360)%360; s.el=la.elevation*R2D; s.rng=la.rangeSat;
+  }
+}
+function lookFrom(s,now,lat,lon){
+  const gmst=S.gstime(now); const pv=S.propagate(s.rec,now); if(!pv||!pv.position)return null;
+  const la=S.ecfToLookAngles({latitude:lat*D2R,longitude:lon*D2R,height:0.01},S.eciToEcf(pv.position,gmst));
+  return {az:(la.azimuth*R2D+360)%360,el:la.elevation*R2D};
+}
+function passFilter(s){const f=$('filter').value;return f==='all'||s.cat===f;}
+
+// Reference cities for orientation on the map
+const cities=[['Nokomis',27.1,-82.4],['New York',40.7,-74],['Los Angeles',34,-118.2],['London',51.5,-0.1],['Moscow',55.8,37.6],['Tokyo',35.7,139.7],['Sydney',-33.9,151.2],['Cape Town',-33.9,18.4],['Buenos Aires',-34.6,-58.4],['Mumbai',19.1,72.9],['Cairo',30,31.2],['Anchorage',61.2,-149.9],['McMurdo',-77.8,166.7],['Honolulu',21.3,-157.9],['Quito',-0.2,-78.5]];
+
+// ---- Globe ----
+const RE=6371;
+let rot={lat:27.12,lon:-82.44}, spinning=true, zoom=1.6, dragging=false, last=null, viewMode='me';
+function issTrail(now){ if($('trails').value==='none'||!iss)return []; const pts=[]; for(let m=-46;m<=46;m+=1){const t=new Date(now.getTime()+m*60000);const pv=S.propagate(iss.rec,t);if(!pv||!pv.position)continue;const g=S.eciToGeodetic(pv.position,S.gstime(t));pts.push([g.latitude*R2D,g.longitude*R2D,g.height]);} return pts;}
+function project(lat,lon,alt,cx,cy,R){
+  // rotate so (rot.lat,rot.lon) faces viewer
+  const la=lat*D2R, lo=(lon-rot.lon)*D2R, r=(RE+alt)/RE;
+  let x=r*Math.cos(la)*Math.sin(lo), y=r*Math.sin(la), z=r*Math.cos(la)*Math.cos(lo);
+  const t=rot.lat*D2R, y2=y*Math.cos(t)-z*Math.sin(t), z2=y*Math.sin(t)+z*Math.cos(t);
+  const hidden = z2<0 && Math.hypot(x,y2)<1; // behind the Earth disk
+  return [cx+x*R, cy-y2*R, z2, hidden];
+}
+function unproject(px,py,cx,cy,R){
+  const x=(px-cx)/R, y2=-(py-cy)/R; const d=x*x+y2*y2; if(d>1)return null;
+  const z2=Math.sqrt(1-d), t=-rot.lat*D2R;
+  const y=y2*Math.cos(t)-z2*Math.sin(t), z=y2*Math.sin(t)+z2*Math.cos(t);
+  const lat=Math.asin(Math.max(-1,Math.min(1,y)))*R2D, lon=Math.atan2(x,z)*R2D+rot.lon;
+  return [lat,((lon+540)%360)-180];
+}
+let picking=false;
+function drawMap(now){
+  const c=$('globe'),x=c.getContext('2d'),W=c.width,H=c.height,cx=W/2,cy=H/2;
+  const R=(W/2)/zoom*0.98;
+  const col={starlink:css('--starlink'),nav:css('--nav'),geo:css('--geo'),big:css('--iss'),other:css('--other')};
+  x.fillStyle=css('--bg');x.fillRect(0,0,W,H);
+  // back-side satellites first (dimmer)
+  const minel=+$('minel').value||0;
+  const draw=(front)=>{
+    for(const k of ['other','starlink','nav','geo','big']){
+      x.fillStyle=col[k]; x.globalAlpha=front?1:0.35;
+      for(const s of sats){ if(!s.ok||s.cat!==k||!passFilter(s))continue;
+        const [px,py,z,hid]=project(s.lat,s.lon,s.alt,cx,cy,R); if(hid)continue; if((z>=0)!==front)continue;
+        if(px<-10||px>W+10||py<-10||py>H+10)continue;
+        const r=(k==='big'?7:k==='starlink'?1.6:2.6)*Math.min(1,Math.sqrt(1.6/zoom)+0.4);
+        x.beginPath();x.arc(px,py,r,0,6.283);x.fill();}
+    }
+    x.globalAlpha=1;
+  };
+  draw(false);
+  // Earth disk
+  x.fillStyle=css('--panel');x.beginPath();x.arc(cx,cy,R,0,6.283);x.fill();
+  x.strokeStyle=css('--line');x.lineWidth=2;x.stroke();
+  // graticule
+  x.strokeStyle=css('--line');x.lineWidth=1;
+  for(let la=-60;la<=60;la+=30){x.beginPath();let pen=false;for(let lo=-180;lo<=180;lo+=3){const [px,py,z,hid]=project(la,lo,0,cx,cy,R);if(hid){pen=false;continue;}pen?x.lineTo(px,py):x.moveTo(px,py);pen=true;}x.stroke();}
+  for(let lo=-180;lo<180;lo+=30){x.beginPath();let pen=false;for(let la=-90;la<=90;la+=3){const [px,py,z,hid]=project(la,lo,0,cx,cy,R);if(hid){pen=false;continue;}pen?x.lineTo(px,py):x.moveTo(px,py);pen=true;}x.stroke();}
+  // coastlines
+  x.strokeStyle=css('--muted');x.lineWidth=1.4;x.fillStyle=css('--line');
+  for(const ring of window.COAST){x.beginPath();let pen=false,any=false;for(const [lo,la] of ring){const [px,py,z,hid]=project(la,lo,0,cx,cy,R);if(hid){pen=false;continue;}pen?x.lineTo(px,py):x.moveTo(px,py);pen=true;any=true;}if(any)x.stroke();}
+  // equator emphasis
+  x.strokeStyle=css('--muted');x.setLineDash([5,5]);x.beginPath();let pen=false;for(let lo=-180;lo<=180;lo+=2){const [px,py,z,hid]=project(0,lo,0,cx,cy,R);if(hid){pen=false;continue;}pen?x.lineTo(px,py):x.moveTo(px,py);pen=true;}x.stroke();x.setLineDash([]);
+  // cities
+  x.fillStyle=css('--fg');x.font='16px '+css('--body');
+  for(const [n,la,lo] of cities){const [px,py,z,hid]=project(la,lo,0,cx,cy,R);if(hid)continue;x.beginPath();x.arc(px,py,3,0,6.283);x.fill();if(zoom<3)x.fillText(n,px+6,py-5);}
+  // observer
+  {const [px,py,z,hid]=project(obs.lat,obs.lon,0,cx,cy,R);if(!hid){x.strokeStyle=css('--accent');x.lineWidth=3;x.beginPath();x.arc(px,py,10,0,6.283);x.stroke();x.beginPath();x.moveTo(px-16,py);x.lineTo(px+16,py);x.moveTo(px,py-16);x.lineTo(px,py+16);x.stroke();}}
+  // ISS trail
+  const tr=issTrail(now); if(tr.length){x.strokeStyle=css('--iss');x.lineWidth=1.5;x.setLineDash([3,4]);x.beginPath();let pen=false;for(const [la,lo,al] of tr){const [px,py,z,hid]=project(la,lo,al,cx,cy,R);if(hid){pen=false;continue;}pen?x.lineTo(px,py):x.moveTo(px,py);pen=true;}x.stroke();x.setLineDash([]);}
+  // front satellites
+  draw(true);
+  // above-horizon rings
+  x.strokeStyle=css('--up');x.lineWidth=1.5;
+  for(const s of sats){ if(!s.ok||s.el<minel||!passFilter(s))continue; const [px,py,z,hid]=project(s.lat,s.lon,s.alt,cx,cy,R); if(hid)continue; x.beginPath();x.arc(px,py,4.5,0,6.283);x.stroke();}
+  if(iss&&iss.ok){const [px,py,z,hid]=project(iss.lat,iss.lon,iss.alt,cx,cy,R);if(!hid){x.fillStyle=css('--iss');x.font='bold 20px '+css('--display');x.fillText('ISS',px+10,py+7);}}
+  // GEO ring label when zoomed out
+  if(zoom>4){x.fillStyle=css('--geo');x.font='16px '+css('--mono');x.textAlign='center';x.fillText('geostationary ring · 35,786 km up · what every dish points at',cx,H-14);x.textAlign='left';}
+}
+// interaction
+(function(){
+  const c=$('globe');
+  const pos=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)/r.width*c.width,(e.clientY-r.top)/r.height*c.height];};
+  let downAt=null;
+  c.addEventListener('pointerdown',e=>{dragging=true;last=pos(e);downAt=pos(e);c.setPointerCapture(e.pointerId);c.style.cursor=picking?'crosshair':'grabbing';});
+  c.addEventListener('pointermove',e=>{if(!dragging)return;const p=pos(e);const k=90/((c.width/2)/zoom);rot.lon+= (p[0]-last[0])*k*0.7; rot.lat=Math.max(-89,Math.min(89,rot.lat+(p[1]-last[1])*k*0.7));last=p;spinning=false;$('spin').textContent='Resume spin';viewMode='free';drawMap(new Date());});
+  c.addEventListener('pointerup',e=>{dragging=false;c.style.cursor=picking?'crosshair':'grab';
+    const p=pos(e); if(!picking||!downAt||Math.hypot(p[0]-downAt[0],p[1]-downAt[1])>8)return;
+    const R=(c.width/2)/zoom*0.98; const ll=unproject(p[0],p[1],c.width/2,c.height/2,R); if(!ll)return;
+    $('lat').value=ll[0].toFixed(2);$('lon').value=ll[1].toFixed(2);$('preset').value='custom';readObs();
+    picking=false;$('pick').textContent='Tap the globe to set location';c.style.cursor='grab';
+    computePasses();tick();});
+  $('pick').addEventListener('click',()=>{picking=!picking;$('pick').textContent=picking?'Now tap your spot on the globe':'Tap the globe to set location';c.style.cursor=picking?'crosshair':'grab';if(picking){spinning=false;$('spin').textContent='Resume spin';}});
+  c.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(1.15,Math.min(9,zoom*(e.deltaY>0?1.08:0.925)));$('zoom').value=zoom;drawMap(new Date());},{passive:false});
+  $('zoom').addEventListener('input',e=>{zoom=+e.target.value;drawMap(new Date());});
+  $('spin').addEventListener('click',()=>{spinning=!spinning;$('spin').textContent=spinning?'Pause spin':'Resume spin';});
+  $('view').addEventListener('change',e=>{viewMode=e.target.value;applyView();drawMap(new Date());});
+  $('trails').addEventListener('change',()=>drawMap(new Date()));
+})();
+function applyView(){
+  if(viewMode==='me'){rot.lat=obs.lat;rot.lon=obs.lon;}
+  else if(viewMode==='np'){rot.lat=89;}
+  else if(viewMode==='sp'){rot.lat=-89;}
+  else if(viewMode==='geo'){rot.lat=0;zoom=7;$('zoom').value=7;}
+}
+setInterval(()=>{if(spinning&&!dragging){rot.lon+=0.25;drawMap(new Date());}},40);
+function drawSky(){
+  const c=$('sky'),x=c.getContext('2d'),W=c.width,H=c.height,cx=W/2,cy=H/2,R=W*0.44;
+  const col={starlink:css('--starlink'),nav:css('--nav'),geo:css('--geo'),big:css('--iss'),other:css('--other')};
+  x.fillStyle=css('--panel');x.fillRect(0,0,W,H);
+  x.strokeStyle=css('--line');x.lineWidth=1.5;
+  for(const e of [0,30,60]){x.beginPath();x.arc(cx,cy,R*(90-e)/90,0,6.283);x.stroke();}
+  x.beginPath();x.moveTo(cx-R,cy);x.lineTo(cx+R,cy);x.moveTo(cx,cy-R);x.lineTo(cx,cy+R);x.stroke();
+  x.fillStyle=css('--muted');x.font='20px '+css('--body');x.textAlign='center';
+  x.fillText('N',cx,cy-R-8);x.fillText('S',cx,cy+R+22);x.fillText('E',cx+R+14,cy+7);x.fillText('W',cx-R-14,cy+7);
+  x.font='14px '+css('--mono');x.fillText('30°',cx+4+R*60/90,cy-4);x.fillText('60°',cx+4+R*30/90,cy-4);
+  const pt=(az,el)=>{const r=R*(90-el)/90,a=(az-90)*D2R;return [cx+r*Math.cos(a),cy+r*Math.sin(a)];};
+  // geo belt arc
+  const belt=sats.filter(s=>s.ok&&s.cat==='geo'&&s.el>0).sort((a,b)=>a.az-b.az);
+  x.strokeStyle=col.geo;x.lineWidth=3;x.setLineDash([4,6]);x.beginPath();
+  belt.forEach((s,i)=>{const [px,py]=pt(s.az,s.el); i?x.lineTo(px,py):x.moveTo(px,py);});
+  x.stroke();x.setLineDash([]);
+  const minel=+$('minel').value||0;
+  for(const k of ['other','starlink','nav','geo','big']){
+    x.fillStyle=col[k];
+    for(const s of sats){ if(!s.ok||s.cat!==k||s.el<minel||!passFilter(s))continue;
+      const [px,py]=pt(s.az,s.el); const r=k==='big'?9:k==='starlink'?3:4;
+      x.beginPath();x.arc(px,py,r,0,6.283);x.fill();
+      if(k==='big'){x.fillStyle=css('--fg');x.font='15px '+css('--mono');x.textAlign='left';x.fillText(s.name.replace(' (ZARYA)','').replace(' (TIANHE)',''),px+10,py+5);x.fillStyle=col[k];}
+    }
+  }
+  x.textAlign='left';
+}
+
+function fillList(){
+  const minel=+$('minel').value||0;
+  const up=sats.filter(s=>s.ok&&s.el>=minel&&passFilter(s)).sort((a,b)=>b.el-a.el);
+  $('sUp').textContent=up.length.toLocaleString();
+  const rows=up.slice(0,300).map(s=>`<tr><td class="n" title="${s.name}">${s.name}</td><td><a href="https://www.n2yo.com/satellite/?s=${s.id}" target="_blank" rel="noopener">${s.id}</a></td><td>${s.az.toFixed(1)}</td><td>${s.el.toFixed(1)}</td><td>${s.rng.toFixed(0)}</td></tr>`).join('');
+  $('upList').innerHTML=rows||'<tr><td colspan="5">Nothing above the horizon with this filter.</td></tr>';
+}
+
+function fillDish(now){
+  if(!goes){$('dish').innerHTML='';return;}
+  const spots=[['Quito, Ecuador',-0.18,-78.47],['Nokomis, FL',27.12,-82.44],['Chicago, IL',41.88,-87.63],['Churchill, MB',58.77,-94.17],['Iqaluit, NU',63.75,-68.52],['Alert, NU',82.5,-62.3]];
+  $('dish').innerHTML=spots.map(([n,la,lo])=>{const l=lookFrom(goes,now,la,lo);if(!l)return'';const below=l.el<0;
+    return `<div><small>${n} · ${la.toFixed(1)}°N</small><b style="color:${below?'var(--up)':'var(--fg)'}">${below?'below horizon':l.el.toFixed(1)+'°'}</b><small>${below?'cannot be seen from here':'dish tilt, az '+l.az.toFixed(0)+'°'}</small></div>`;}).join('');
+}
+
+// Sun geometry for pass visibility
+function jd(d){return d.getTime()/86400000+2440587.5;}
+function sunEci(now){const r=S.sunPos(jd(now)).rsun;const AU=149597870.7;return {x:r.x*AU,y:r.y*AU,z:r.z*AU};}
+function satSunlit(pos,sun){const sm=Math.hypot(sun.x,sun.y,sun.z);const u={x:sun.x/sm,y:sun.y/sm,z:sun.z/sm};const d=pos.x*u.x+pos.y*u.y+pos.z*u.z;if(d>0)return true;const pm=Math.hypot(pos.x,pos.y,pos.z);return Math.sqrt(pm*pm-d*d)>6371;}
+function sunElev(now,lat,lon){const sun=sunEci(now);const gmst=S.gstime(now);const la=S.ecfToLookAngles({latitude:lat*D2R,longitude:lon*D2R,height:0},S.eciToEcf(sun,gmst));return la.elevation*R2D;}
+
+function computePasses(){
+  const tb=$('passList'); if(!iss){tb.innerHTML='<tr><td colspan="6">ISS not in catalog.</td></tr>';return;}
+  const passes=[]; let t=Date.now(); const end=t+3*86400000; let cur=null;
+  const gm=S.gstime; const o={latitude:obs.lat*D2R,longitude:obs.lon*D2R,height:0.01};
+  for(;t<end;t+=15000){
+    const now=new Date(t); const pv=S.propagate(iss.rec,now); if(!pv||!pv.position)continue;
+    const g=gm(now); const la=S.ecfToLookAngles(o,S.eciToEcf(pv.position,g)); const el=la.elevation*R2D, az=(la.azimuth*R2D+360)%360;
+    if(el>0){
+      if(!cur)cur={start:t,riseAz:az,max:el,vis:false};
+      if(el>cur.max)cur.max=el;
+      if(satSunlit(pv.position,sunEci(now))&&sunElev(now,obs.lat,obs.lon)<-6)cur.vis=true;
+      cur.setAz=az;cur.end=t;
+    }else if(cur){ if(cur.max>=10)passes.push(cur); cur=null; }
+  }
+  const fmt=d=>new Date(d).toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  const dir=a=>['N','NE','E','SE','S','SW','W','NW'][Math.round(a/45)%8];
+  tb.innerHTML=passes.map(p=>`<tr><td>${fmt(p.start)}</td><td>${dir(p.riseAz)} ${p.riseAz.toFixed(0)}°</td><td>${p.max.toFixed(0)}</td><td>${dir(p.setAz)} ${p.setAz.toFixed(0)}°</td><td>${Math.round((p.end-p.start)/60000)} min</td><td class="${p.vis?'vis':''}">${p.vis?'Yes':'daylight / in shadow'}</td></tr>`).join('')||'<tr><td colspan="6">No passes above 10° in the next 3 days from this latitude.</td></tr>';
+}
+
+function tick(){
+  const now=new Date();
+  $('sClock').textContent=now.toISOString().substr(11,8);
+  propagateAll(now); drawMap(now); drawSky(); fillList(); fillDish(now);
+}
+readObs(); applyView(); computePasses(); tick();
+setInterval(tick,2000);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',tick);
+})();
+</script>
+</body></html>
