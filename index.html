@@ -60,12 +60,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <div class="wrap">
   <header>
     <h1>Overhead Now</h1>
-    <p class="sub">Every tracked, active satellite, propagated from its published orbital elements to this second, on a globe you can spin, plus the ones above your horizon right now. Pick any spot on Earth. Then go outside, or check the same pass on <a href="https://www.heavens-above.com" target="_blank" rel="noopener">Heavens-Above</a>, <a href="https://www.n2yo.com" target="_blank" rel="noopener">N2YO</a>, or NASA's <a href="https://spotthestation.nasa.gov" target="_blank" rel="noopener">Spot the Station</a>.</p>
+    <p class="sub">Every tracked, active satellite, propagated from its published orbital elements to this second, on a globe you can spin, plus the ones above your horizon right now. Pick any spot on Earth, or isolate one country's fleet. Then go outside, or check the same pass on <a href="https://www.heavens-above.com" target="_blank" rel="noopener">Heavens-Above</a>, <a href="https://www.n2yo.com" target="_blank" rel="noopener">N2YO</a>, or NASA's <a href="https://spotthestation.nasa.gov" target="_blank" rel="noopener">Spot the Station</a>.</p>
   </header>
 
   <section class="strip" id="strip">
     <div class="stat"><b id="sTotal">–</b><span>objects tracked</span></div>
     <div class="stat"><b id="sUp">–</b><span>above your horizon</span></div>
+    <div class="stat"><b id="sSel">–</b><span id="sSelLbl">shown</span></div>
     <div class="stat"><b id="sStar">–</b><span>Starlink</span></div>
     <div class="stat"><b id="sNav">–</b><span>GPS / GNSS</span></div>
     <div class="stat"><b id="sGeo">–</b><span>geostationary</span></div>
@@ -87,6 +88,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
       <label>Longitude <input id="lon" type="number" step="0.01" min="-180" max="180" value="-82.44"></label>
       <label>Min elevation ° <input id="minel" type="number" step="1" min="0" max="90" value="0" style="width:80px"></label>
       <button id="pick" type="button">Tap the globe to set location</button>
+      <label>Country <select id="country"><option value="">All countries</option></select></label>
       <label>Show <select id="filter">
         <option value="all">All</option><option value="starlink">Starlink only</option><option value="nav">GNSS only</option><option value="geo">Geostationary only</option><option value="big">ISS, CSS, Hubble</option></select></label>
     </div>
@@ -125,7 +127,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     </section>
     <section class="panel">
       <h2>Above your horizon</h2>
-      <div class="tscroll"><table><thead><tr><th>Name</th><th>NORAD</th><th>Az°</th><th>El°</th><th>Range km</th></tr></thead><tbody id="upList"></tbody></table></div>
+      <div class="tscroll"><table><thead><tr><th>Name</th><th>Owner</th><th>NORAD</th><th>Az°</th><th>El°</th><th>Range km</th></tr></thead><tbody id="upList"></tbody></table></div>
       <p class="note">Sorted by elevation. Click a NORAD number to see the same object on N2YO's independent tracker.</p>
     </section>
   </div>
@@ -156,7 +158,7 @@ const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim
 
 // Build satrecs
 const sats=[];
-for(const [name,l1,l2] of window.TLE_DATA){
+for(const [name,l1,l2,own] of window.TLE_DATA){
   let rec; try{rec=S.twoline2satrec(l1,l2);}catch(e){continue;}
   const mm=parseFloat(l2.substr(52,11));
   let cat='other';
@@ -164,7 +166,7 @@ for(const [name,l1,l2] of window.TLE_DATA){
   else if(/^(NAVSTAR|GPS|GLONASS|COSMOS 2\d{3}.*GLONASS|GSAT0|GALILEO|BEIDOU)/.test(name))cat='nav';
   else if(/^(ISS \(ZARYA\)|CSS \(TIANHE\)|HST)$/.test(name.trim()))cat='big';
   else if(Math.abs(mm-1.0027)<0.01 && parseFloat(l2.substr(8,8))<15)cat='geo';
-  sats.push({name:name.trim(),id:parseInt(l1.substr(2,5)),rec,cat,lat:0,lon:0,alt:0,az:0,el:-90,rng:0,ok:true});
+  sats.push({name:name.trim(),id:parseInt(l1.substr(2,5)),rec,cat,own:own||'',lat:0,lon:0,alt:0,az:0,el:-90,rng:0,ok:true});
 }
 $('sTotal').textContent=sats.length.toLocaleString();
 $('sStar').textContent=sats.filter(s=>s.cat==='starlink').length.toLocaleString();
@@ -179,7 +181,7 @@ let obs={lat:27.12,lon:-82.44};
 function readObs(){obs.lat=+$('lat').value||0;obs.lon=+$('lon').value||0;}
 $('preset').addEventListener('change',e=>{const v=e.target.value;if(v==='custom')return;const [a,b]=v.split(',');$('lat').value=a;$('lon').value=b;readObs();if(viewMode==='me')applyView();computePasses();tick();});
 ['lat','lon'].forEach(id=>$(id).addEventListener('change',()=>{$('preset').value='custom';readObs();if(viewMode==='me')applyView();computePasses();tick();}));
-['minel','filter'].forEach(id=>$(id).addEventListener('change',tick));
+['minel','filter','country'].forEach(id=>$(id).addEventListener('change',tick));
 
 function propagateAll(now){
   const gmst=S.gstime(now);
@@ -200,7 +202,12 @@ function lookFrom(s,now,lat,lon){
   const la=S.ecfToLookAngles({latitude:lat*D2R,longitude:lon*D2R,height:0.01},S.eciToEcf(pv.position,gmst));
   return {az:(la.azimuth*R2D+360)%360,el:la.elevation*R2D};
 }
-function passFilter(s){const f=$('filter').value;return f==='all'||s.cat===f;}
+const OWN_NAMES={"US":"United States","PRC":"China","UK":"United Kingdom","CIS":"Russia","JPN":"Japan","IT":"Italy","IND":"India","FR":"France","GER":"Germany","ESA":"ESA","SKOR":"South Korea","CA":"Canada","SPN":"Spain","TURK":"Turkey","SES":"SES (Luxembourg)","ITSO":"Intelsat","AUS":"Australia","O3B":"O3b (SES)","EUTE":"Eutelsat","ARGN":"Argentina","GLOB":"Globalstar","ROC":"Taiwan","FIN":"Finland","UAE":"UAE","ISRA":"Israel","NETH":"Netherlands","NOR":"Norway","SWTZ":"Switzerland","BRAZ":"Brazil","IRAN":"Iran","NKOR":"North Korea","PAKI":"Pakistan","SAUD":"Saudi Arabia","EGYP":"Egypt","INDO":"Indonesia","THAI":"Thailand","MALA":"Malaysia","SING":"Singapore","POL":"Poland","LUXE":"Luxembourg","DEN":"Denmark","SWED":"Sweden","BEL":"Belgium","MEX":"Mexico","NZ":"New Zealand","SAFR":"South Africa","TBD":"Unlisted"};
+const ownName=c=>OWN_NAMES[c]||c;
+(function(){const cnt={};for(const s of sats)cnt[s.own]=(cnt[s.own]||0)+1;
+  const opts=Object.entries(cnt).filter(([k])=>k).sort((a,b)=>b[1]-a[1]);
+  $('country').innerHTML='<option value="">All countries</option>'+opts.map(([k,n])=>`<option value="${k}">${ownName(k)} (${n.toLocaleString()})</option>`).join('');})();
+function passFilter(s){const f=$('filter').value,c=$('country').value;return (f==='all'||s.cat===f)&&(!c||s.own===c);}
 
 // Reference cities for orientation on the map
 const cities=[['Nokomis',27.1,-82.4],['New York',40.7,-74],['Los Angeles',34,-118.2],['London',51.5,-0.1],['Moscow',55.8,37.6],['Tokyo',35.7,139.7],['Sydney',-33.9,151.2],['Cape Town',-33.9,18.4],['Buenos Aires',-34.6,-58.4],['Mumbai',19.1,72.9],['Cairo',30,31.2],['Anchorage',61.2,-149.9],['McMurdo',-77.8,166.7],['Honolulu',21.3,-157.9],['Quito',-0.2,-78.5]];
@@ -331,8 +338,9 @@ function fillList(){
   const minel=+$('minel').value||0;
   const up=sats.filter(s=>s.ok&&s.el>=minel&&passFilter(s)).sort((a,b)=>b.el-a.el);
   $('sUp').textContent=up.length.toLocaleString();
-  const rows=up.slice(0,300).map(s=>`<tr><td class="n" title="${s.name}">${s.name}</td><td><a href="https://www.n2yo.com/satellite/?s=${s.id}" target="_blank" rel="noopener">${s.id}</a></td><td>${s.az.toFixed(1)}</td><td>${s.el.toFixed(1)}</td><td>${s.rng.toFixed(0)}</td></tr>`).join('');
-  $('upList').innerHTML=rows||'<tr><td colspan="5">Nothing above the horizon with this filter.</td></tr>';
+  const shown=sats.filter(s=>s.ok&&passFilter(s)).length;$('sSel').textContent=shown.toLocaleString();const cc=$('country').value;$('sSelLbl').textContent=cc?ownName(cc)+' shown':'shown';
+  const rows=up.slice(0,300).map(s=>`<tr><td class="n" title="${s.name}">${s.name}</td><td>${s.own}</td><td><a href="https://www.n2yo.com/satellite/?s=${s.id}" target="_blank" rel="noopener">${s.id}</a></td><td>${s.az.toFixed(1)}</td><td>${s.el.toFixed(1)}</td><td>${s.rng.toFixed(0)}</td></tr>`).join('');
+  $('upList').innerHTML=rows||'<tr><td colspan="6">Nothing above the horizon with this filter.</td></tr>';
 }
 
 function fillDish(now){
