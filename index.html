@@ -155,6 +155,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <script src="tle.js"></script>
 <script src="coast.js"></script>
 <script>
+// Satellite names and owner codes come from CelesTrak's public catalog: escape them before inserting as HTML.
+const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 (function(){
 const S=satellite, D2R=Math.PI/180, R2D=180/Math.PI;
 const $=id=>document.getElementById(id);
@@ -210,7 +213,7 @@ const OWN_NAMES={"US":"United States","PRC":"China","UK":"United Kingdom","CIS":
 const ownName=c=>OWN_NAMES[c]||c;
 (function(){const cnt={};for(const s of sats)cnt[s.own]=(cnt[s.own]||0)+1;
   const opts=Object.entries(cnt).filter(([k])=>k).sort((a,b)=>b[1]-a[1]);
-  $('country').innerHTML='<option value="">All countries</option>'+opts.map(([k,n])=>`<option value="${k}">${ownName(k)} (${n.toLocaleString()})</option>`).join('');})();
+  $('country').innerHTML='<option value="">All countries</option>'+opts.map(([k,n])=>`<option value="${esc(k)}">${esc(ownName(k))} (${n.toLocaleString()})</option>`).join('');})();
 function passFilter(s){const f=$('filter').value,c=$('country').value;return (f==='all'||s.cat===f)&&(!c||s.own===c);}
 
 // Reference cities for orientation on the map
@@ -343,7 +346,7 @@ function fillList(){
   const up=sats.filter(s=>s.ok&&s.el>=minel&&passFilter(s)).sort((a,b)=>b.el-a.el);
   $('sUp').textContent=up.length.toLocaleString();
   const shown=sats.filter(s=>s.ok&&passFilter(s)).length;$('sSel').textContent=shown.toLocaleString();const cc=$('country').value;$('sSelLbl').textContent=cc?ownName(cc)+' shown':'shown';
-  const rows=up.slice(0,300).map(s=>`<tr><td class="n" title="${s.name}">${s.name}</td><td>${s.own}</td><td><a href="https://www.n2yo.com/satellite/?s=${s.id}" target="_blank" rel="noopener">${s.id}</a></td><td>${s.az.toFixed(1)}</td><td>${s.el.toFixed(1)}</td><td>${s.rng.toFixed(0)}</td></tr>`).join('');
+  const rows=up.slice(0,300).map(s=>`<tr><td class="n" title="${esc(s.name)}">${esc(s.name)}</td><td>${esc(s.own)}</td><td><a href="https://www.n2yo.com/satellite/?s=${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${esc(s.id)}</a></td><td>${s.az.toFixed(1)}</td><td>${s.el.toFixed(1)}</td><td>${s.rng.toFixed(0)}</td></tr>`).join('');
   $('upList').innerHTML=rows||'<tr><td colspan="6">Nothing above the horizon with this filter.</td></tr>';
 }
 
@@ -389,4 +392,5 @@ setInterval(tick,2000);
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',tick);
 })();
 </script>
+<script>/* Only ordinary web, email and phone links are followed: the second lock behind the data pipeline. */document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(!a)return;var h=(a.getAttribute("href")||"").trim();if(h&&h.charAt(0)!=="#"&&h.charAt(0)!=="/"&&!/^(https?:|mailto:|tel:|[a-z0-9._-]+\.html)/i.test(h)){e.preventDefault();e.stopPropagation()}},true);</script>
 </body></html>
