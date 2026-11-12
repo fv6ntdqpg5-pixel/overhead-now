@@ -36,3 +36,13 @@ Randy: if someone picks dark (or light) on one desk, every other desk they open 
   Earth Desk and Vaccine Desk `deskTheme` plus a new "Light look / Dark look" button beside the credit line (they had no
   switch); Overhead Now has one dark look only, so it just remembers an incoming choice and passes it on.
 - LIVE Nov 12, 2026 on Randy's "Go on the look".
+
+## Nov 12, 2026: zoom in ten times closer (PREVIEW on branch `zoom-in`, waiting for Randy's Go)
+Randy: a full-screen Earth was as far as the globe zoomed in; he wants to pick out single satellites.
+- `zoom` is how many Earth-widths fit across the view (smaller is closer). The range was 1.15 to 9; it is now `ZMIN` 0.1 to
+  `ZMAX` 9, so the closest view is about ten times closer than before. Pinch, scroll and the slider all reach it.
+- The slider is now 0 to 100 on a log scale and **right is closer** (it used to run the other way); `zToS` / `sToZ` convert.
+- 3D (`globe3d.js` `setCamera`): down to 1.15 the camera moves in as before; closer than that the camera stays where it is and
+  the lens narrows (`cam.fov`), so it never ends up inside the shell of low satellites. `pick` uses the same lens.
+- Dots grow a little when zoomed in (`ptK()`, capped at 1.7), and the auto-spin slows in proportion so a satellite does not
+  race out of view. Tap tolerance is unchanged (24 px); at close zoom the dots are far enough apart for it.

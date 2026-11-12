@@ -137,12 +137,16 @@
       cam.w = r.width; cam.h = r.height; cam.dpr = dpr;
     }
     function setCamera(rot, zoom) {
-      var t = 0.98 * Math.tan(FOV / 2) / zoom, d = Math.sqrt(1 + t * t) / t; // the Earth fills the same share of the view as in the 2D globe
+      // Down to zoom 1.15 the camera moves toward the Earth. Closer than that it stays put and the lens narrows instead
+      // (a telephoto), so the camera never ends up inside the shell of low satellites and they stay in view.
+      var zc = Math.max(zoom, 1.15), fov = zoom >= 1.15 ? FOV : 2 * Math.atan(Math.tan(FOV / 2) * zoom / 1.15);
+      var t = 0.98 * Math.tan(FOV / 2) / zc, d = Math.sqrt(1 + t * t) / t; // the Earth fills the same share of the view as in the 2D globe
+      cam.fov = fov;
       var dir = xyz(rot.lat, rot.lon, 1), eye = [dir[0] * d, dir[1] * d, dir[2] * d];
       var f = norm([-eye[0], -eye[1], -eye[2]]), s = norm(cross(f, [0, 0, 1])), u = cross(s, f);
       var view = [s[0], u[0], -f[0], 0, s[1], u[1], -f[1], 0, s[2], u[2], -f[2], 0, -dot(s, eye), -dot(u, eye), dot(f, eye), 1];
       cam.eye = eye; cam.fwd = f; cam.right = s; cam.up = u; cam.d = d;
-      cam.mvp = mul(persp(FOV, cam.w / cam.h, 0.05, d + 120), view);
+      cam.mvp = mul(persp(fov, cam.w / cam.h, 0.05, d + 120), view);
     }
     // world point (Earth radii) -> CSS pixel, or null when off-screen or hidden behind the Earth
     function project(p) {
@@ -154,7 +158,7 @@
     }
     // CSS pixel -> [lat, lon] on the surface, or null when the tap misses the Earth
     function pick(px, py) {
-      var nx = px / cam.w * 2 - 1, ny = 1 - py / cam.h * 2, th = Math.tan(FOV / 2), asp = cam.w / cam.h;
+      var nx = px / cam.w * 2 - 1, ny = 1 - py / cam.h * 2, th = Math.tan((cam.fov || FOV) / 2), asp = cam.w / cam.h;
       var d = norm([cam.fwd[0] + cam.right[0] * nx * th * asp + cam.up[0] * ny * th, cam.fwd[1] + cam.right[1] * nx * th * asp + cam.up[1] * ny * th, cam.fwd[2] + cam.right[2] * nx * th * asp + cam.up[2] * ny * th]);
       var e = cam.eye, bq = dot(e, d), cq = dot(e, e) - 1, disc = bq * bq - cq; if (disc < 0) return null;
       var t = -bq - Math.sqrt(disc), h = [e[0] + d[0] * t, e[1] + d[1] * t, e[2] + d[2] * t];
