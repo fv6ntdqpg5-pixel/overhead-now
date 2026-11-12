@@ -9,6 +9,8 @@
 - Satellite readout (`#readout`): tap a dot on the globe or sky chart, or a row in the list, or "Show the ISS". `select()`, `pickSat()`, `fillReadout()`, `selOrbit()`. Shows altitude, speed, sub-point, period, inclination, bearing, elevation, range and sunlit/shadow, all computed from the elements; refreshes every tick. The pick is marked with a square bracket and name (shape, not only color) and one orbit is drawn in the Earth-fixed frame on the globe (overlay canvas in 3D, same canvas in classic), plus its path across the sky chart for 15 minutes either side of now.
 - Next ISS pass (`#nextPass`): a countdown from the same `passes` list as the table (`fillNext()`, every second; passes recomputed every 30 minutes). Rise and set are now narrowed to the second by bisection inside the 15-second scan.
 - Sky chart restyled (dark dome, compass ticks, larger labels). No sweep line: it would be decoration, not data.
+- Item 6 (built): the readout is recomputed for the picked satellite five times a second (`fillReadout`, 200 ms timer, text nodes updated only when they change), so its numbers move with the satellite; the UTC clock now ticks every second. Figures are kept to what the elements support (whole km, hundredths of a degree on the ground). Counts are not animated through in-between values.
+- Item 7 (built): the dish test draws each dish as an SVG tilted to its computed elevation (`dishSvg`), with the line of sight, the angle arc and the horizon line; below the horizon the line is red, dotted and ends in a cross, and the card says how far under. Numbers stay beside each drawing.
 - Not built on purpose: starfield, glow effects, fake scanning animation.
 - Not tested on a real phone. Site check passes locally on phone and desktop.
 

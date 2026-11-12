@@ -196,7 +196,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 
   <section class="panel">
     <h2>Dish test: one satellite, six latitudes</h2>
-    <p class="sub">GOES-19 sits over 75.2°W and never moves in the sky. From each city below, here is the angle above the horizon a dish must point to see it, computed live from its elements. On a flat plane the angle would fall off slowly with distance and never reach zero. On a sphere it hits the horizon near 81° latitude. Every satellite TV installer's tables agree with the second column.</p>
+    <p class="sub">GOES-19 sits over 75.2°W and never moves in the sky. From each city below, here is the angle above the horizon a dish must point to see it, computed live from its elements. On a flat plane the angle would fall off slowly with distance and never reach zero. On a sphere it hits the horizon near 81° latitude. Every satellite TV installer's tables agree with these angles. Each dish below is drawn at its computed tilt; the dashed level line is the horizon.</p>
     <div class="dish" id="dish" style="margin-top:12px"></div>
   </section>
 
@@ -309,28 +309,35 @@ function select(s,center){
   const now=new Date();selOrbit(now);fillReadout(now);drawMap(now);drawSky();markRow();
 }
 function markRow(){for(const tr of $('upList').children)tr.classList.toggle('on',!!sel&&tr.dataset.id===String(sel.id));}
+// The readout is recomputed from the picked satellite's elements five times a second (one satellite is cheap), so its numbers
+// move as the satellite does. Figures are shown no finer than the elements support: whole kilometers, hundredths of a degree on the ground.
+let roFor=null;
+const RO=[['alt','Altitude'],['spd','Speed'],['over','Over'],['orb','One orbit'],['dir','Direction from you'],['el','Height in your sky'],['rng','Distance from you'],['sun','Sunlight']];
+const setTxt=(id,t)=>{const e=$(id);if(e&&e.textContent!==t)e.textContent=t;};
 function fillReadout(now){
-  const s=sel;$('roBody').hidden=!s;$('roEmpty').hidden=!!s;if(!s)return;
-  $('roName').textContent=s.name;$('roType').textContent=CATNAME[s.cat];
-  const idLink=`<a href="https://www.n2yo.com/satellite/?s=${encodeURIComponent(s.id)}" target="_blank" rel="noopener">NORAD ${esc(s.id)}</a>`;
-  if(!s.ok){$('roStat').textContent='No position: these orbital elements no longer propagate.';$('roGrid').innerHTML='';$('roNote').innerHTML=idLink;return;}
-  let lit=null;try{const pv=S.propagate(s.rec,now);if(pv&&pv.position&&isFinite(pv.position.x))lit=satSunlit(pv.position,sunEci(now));}catch(e){}
+  const s=sel;$('roBody').hidden=!s;$('roEmpty').hidden=!!s;if(!s){roFor=null;return;}
+  if(roFor!==s){roFor=s;
+    $('roName').textContent=s.name;$('roType').textContent=CATNAME[s.cat];
+    $('roGrid').innerHTML=RO.map(([k,l])=>`<div><span>${l}</span><b id="ro_${k}">–</b><small id="ro_${k}s">&nbsp;</small></div>`).join('');
+    $('roNote').innerHTML='Owner: '+esc(ownName(s.own)||'Unlisted')+' · <a href="https://www.n2yo.com/satellite/?s='+encodeURIComponent(s.id)+'" target="_blank" rel="noopener">NORAD '+esc(s.id)+'</a> (check it on N2YO’s independent tracker). These numbers are recomputed five times a second.';
+  }
+  let pv=null;try{pv=S.propagate(s.rec,now);}catch(e){}
+  if(!pv||!pv.position||!isFinite(pv.position.x)){setTxt('roStat','No position: these orbital elements no longer propagate.');$('roStat').style.color='var(--muted)';for(const [k] of RO){setTxt('ro_'+k,'–');setTxt('ro_'+k+'s',' ');}return;}
+  const gm=S.gstime(now),g=S.eciToGeodetic(pv.position,gm),la=S.ecfToLookAngles({latitude:obs.lat*D2R,longitude:obs.lon*D2R,height:0.01},S.eciToEcf(pv.position,gm));
+  const lat=g.latitude*R2D,lon=((g.longitude*R2D+540)%360)-180,az=(la.azimuth*R2D+360)%360,el=la.elevation*R2D,rng=la.rangeSat,v=pv.velocity,spd=v&&isFinite(v.x)?Math.hypot(v.x,v.y,v.z):NaN;
+  const lit=satSunlit(pv.position,sunEci(now)),up=el>=0;
   const per=2*Math.PI/s.rec.no, perTxt=per>=120?Math.floor(per/60)+' h '+String(Math.round(per%60)).padStart(2,'0')+' m':per.toFixed(1)+' min';
-  const up=s.el>=0;
-  $('roStat').textContent=(up?'▲ Above your horizon now':'▽ Below your horizon now');
-  $('roStat').style.color=up?'var(--up)':'var(--muted)';
-  const cell=(k,v,sub)=>`<div><span>${k}</span><b>${v}</b><small>${sub||'&nbsp;'}</small></div>`;
-  $('roGrid').innerHTML=
-    cell('Altitude',num(s.alt)+' km',num(s.alt*KM_MI)+' mi')+
-    cell('Speed',num(s.spd,2)+' km/s',num(s.spd*3600*KM_MI)+' mph')+
-    cell('Over',Math.abs(s.lat).toFixed(1)+'°'+(s.lat>=0?'N':'S'),Math.abs(s.lon).toFixed(1)+'°'+(s.lon>=0?'E':'W'))+
-    cell('One orbit',perTxt,'tilt '+(s.rec.inclo*R2D).toFixed(1)+'° to the equator')+
-    cell('Direction from you',compass(s.az)+' '+s.az.toFixed(0)+'°','compass bearing')+
-    cell('Height in your sky',s.el.toFixed(1)+'°',up?'above the horizon':'below the horizon')+
-    cell('Distance from you',num(s.rng)+' km',num(s.rng*KM_MI)+' mi')+
-    cell('Sunlight',lit==null?'–':lit?'Sunlit':'In shadow',lit==null?'':lit?'the sun is shining on it':'it is in the Earth’s shadow');
-  $('roNote').innerHTML='Owner: '+esc(ownName(s.own)||'Unlisted')+' · '+idLink+' (check it on N2YO’s independent tracker). Numbers refresh every 2 seconds.';
+  setTxt('roStat',up?'▲ Above your horizon now':'▽ Below your horizon now');$('roStat').style.color=up?'var(--up)':'var(--muted)';
+  setTxt('ro_alt',num(g.height)+' km');setTxt('ro_alts',num(g.height*KM_MI)+' mi');
+  setTxt('ro_spd',num(spd,2)+' km/s');setTxt('ro_spds',num(spd*3600*KM_MI)+' mph');
+  setTxt('ro_over',Math.abs(lat).toFixed(2)+'°'+(lat>=0?'N':'S'));setTxt('ro_overs',Math.abs(lon).toFixed(2)+'°'+(lon>=0?'E':'W'));
+  setTxt('ro_orb',perTxt);setTxt('ro_orbs','tilt '+(s.rec.inclo*R2D).toFixed(1)+'° to the equator');
+  setTxt('ro_dir',compass(az)+' '+az.toFixed(1)+'°');setTxt('ro_dirs','compass bearing');
+  setTxt('ro_el',el.toFixed(1)+'°');setTxt('ro_els',up?'above the horizon':'below the horizon');
+  setTxt('ro_rng',num(rng)+' km');setTxt('ro_rngs',num(rng*KM_MI)+' mi');
+  setTxt('ro_sun',lit?'Sunlit':'In shadow');setTxt('ro_suns',lit?'the sun is shining on it':'it is in the Earth’s shadow');
 }
+setInterval(()=>{if(document.hidden)return;const now=new Date();setTxt('sClock',now.toISOString().substr(11,8));if(sel)fillReadout(now);},200);
 // nearest drawn satellite to a tap on the globe, or null
 function pickSat(p,is3d,c){
   let best=null,bd=1e9;const k=is3d?1:c.width/c.getBoundingClientRect().width,R=(c.width/2)/zoom*0.98;
@@ -596,11 +603,30 @@ function showIss(){if(!iss)return;select(iss,true);$('gwrap').scrollIntoView({be
 $('trackIss').addEventListener('click',showIss);$('npShow').addEventListener('click',showIss);
 if(!iss){$('trackIss').hidden=true;$('npShow').hidden=true;}
 
+// Each dish is drawn tilted to the elevation angle computed for that city, with its line of sight to GOES-19. The dashed level line is the horizon.
+function dishSvg(el){
+  const below=el<0,a=-el,px=40,py=62,r=26,ar=el*D2R;
+  const arc=!below&&el>0.5?`<path d="M ${px+r} ${py} A ${r} ${r} 0 0 0 ${(px+r*Math.cos(ar)).toFixed(1)} ${(py-r*Math.sin(ar)).toFixed(1)}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>`:'';
+  return `<svg viewBox="0 0 120 84" role="img" aria-label="${below?'Dish aimed below the horizon':'Dish tilted '+el.toFixed(1)+' degrees above the horizon'}" style="width:100%;max-width:190px;height:auto;display:block;margin:2px 0 4px">
+    <line x1="4" y1="76" x2="116" y2="76" stroke="var(--line)" stroke-width="2"/>
+    <line x1="${px}" y1="76" x2="${px}" y2="${py}" stroke="var(--muted)" stroke-width="3"/>
+    <line x1="${px}" y1="${py}" x2="116" y2="${py}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="2 3"/>
+    ${arc}
+    <g transform="rotate(${a.toFixed(2)} ${px} ${py})">
+      <line x1="${px+12}" y1="${py}" x2="${px+60}" y2="${py}" stroke="${below?'var(--up)':'var(--cyan)'}" stroke-width="1.6" stroke-dasharray="${below?'3 3':'5 3'}"/>
+      ${below?`<path d="M ${px+56} ${py-4} l 8 8 m 0 -8 l -8 8" stroke="var(--up)" stroke-width="2" fill="none"/>`:`<path d="M ${px+60} ${py} l -7 -3.5 v 7 z" fill="var(--cyan)"/>`}
+      <path d="M ${px} ${py-15} Q ${px-11} ${py} ${px} ${py+15}" fill="none" stroke="var(--fg)" stroke-width="3" stroke-linecap="round"/>
+      <line x1="${px-5}" y1="${py}" x2="${px+12}" y2="${py}" stroke="var(--fg)" stroke-width="1.5"/>
+      <circle cx="${px+12}" cy="${py}" r="2.2" fill="var(--fg)"/>
+    </g>
+  </svg>`;
+}
 function fillDish(now){
   if(!goes){$('dish').innerHTML='';return;}
   const spots=[['Quito, Ecuador',-0.18,-78.47],['Nokomis, FL',27.12,-82.44],['Chicago, IL',41.88,-87.63],['Churchill, MB',58.77,-94.17],['Iqaluit, NU',63.75,-68.52],['Alert, NU',82.5,-62.3]];
-  $('dish').innerHTML=spots.map(([n,la,lo])=>{const l=lookFrom(goes,now,la,lo);if(!l)return'';const below=l.el<0;
-    return `<div><small>${n} · ${la.toFixed(1)}°N</small><b style="color:${below?'var(--up)':'var(--fg)'}">${below?'below horizon':l.el.toFixed(1)+'°'}</b><small>${below?'cannot be seen from here':'dish tilt, az '+l.az.toFixed(0)+'°'}</small></div>`;}).join('');
+  const html=spots.map(([n,la,lo])=>{const l=lookFrom(goes,now,la,lo);if(!l)return'';const below=l.el<0;
+    return `<div><small>${n} · ${Math.abs(la).toFixed(1)}°${la>=0?'N':'S'}</small>${dishSvg(l.el)}<b style="color:${below?'var(--up)':'var(--fg)'}">${below?'below horizon':l.el.toFixed(1)+'°'}</b><small>${below?'✕ cannot be seen from here ('+Math.abs(l.el).toFixed(1)+'° under the horizon)':'dish tilt, az '+l.az.toFixed(0)+'°'}</small></div>`;}).join('');
+  if(html!==fillDish.last){fillDish.last=html;$('dish').innerHTML=html;}
 }
 
 // Sun geometry for pass visibility
