@@ -34,6 +34,7 @@ label{display:grid;gap:4px;font-size:12px;letter-spacing:.05em;text-transform:up
 input,select{font:14px var(--mono);background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:120px}
 select{width:auto}
 canvas{width:100%;height:auto;display:block;border-radius:4px}
+canvas[hidden]{display:none}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 @media (max-width:760px){.two{grid-template-columns:1fr}}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);margin-top:8px}
@@ -111,17 +112,23 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
         <option value="sp">Over the South Pole</option>
         <option value="geo">Edge-on: geostationary ring</option></select></label>
       <label>Trails <select id="trails"><option value="iss">ISS orbit</option><option value="none">None</option></select></label>
+      <label>Graphics <select id="gfx"><option value="3d">3D</option><option value="2d">Classic 2D</option></select></label>
     </div>
-    <canvas id="globe" width="1200" height="1200" aria-label="Rotatable globe with satellite positions" style="cursor:grab;touch-action:none;max-width:720px;margin:0 auto"></canvas>
+    <div id="gwrap" style="position:relative;max-width:720px;margin:0 auto">
+      <canvas id="globe3d" hidden aria-label="Rotatable 3D globe with satellite positions" style="cursor:grab;touch-action:none;aspect-ratio:1"></canvas>
+      <canvas id="glabels" hidden aria-hidden="true" style="position:absolute;inset:0;pointer-events:none;height:100%"></canvas>
+      <canvas id="globe" width="1200" height="1200" aria-label="Rotatable globe with satellite positions" style="cursor:grab;touch-action:none"></canvas>
+    </div>
+    <p class="note" id="gfxNote" hidden style="margin-top:6px"></p>
     <div class="legend">
       <span><i style="background:var(--iss)"></i>ISS / CSS / Hubble</span>
       <span><i style="background:var(--starlink)"></i>Starlink</span>
       <span><i style="background:var(--nav)"></i>GPS, GLONASS, Galileo, BeiDou</span>
       <span><i style="background:var(--geo)"></i>Geostationary belt</span>
       <span><i style="background:var(--other)"></i>Everything else</span>
-      <span><i style="background:var(--up)"></i>Above your horizon</span>
+      <span><i style="background:transparent;border:2px solid var(--up);width:11px;height:11px"></i>Ring: above your horizon</span>
     </div>
-    <p class="note">Drag to rotate, scroll or use the slider to zoom. To use your own spot, press the button above and tap it on the globe; the horizon list, sky chart, and ISS passes all update. Zoom out to about 7 and the geostationary ring appears 35,786 km above the equator, exactly where every satellite dish is aimed. Switch to the South Pole view: polar-orbit satellites cross Antarctica every few minutes.</p>
+    <p class="note">Drag to rotate; pinch, scroll or use the slider to zoom. In 3D the shaded side of the Earth is where it is night right now, from the sun's actual position. To use your own spot, press the button above and tap it on the globe; the horizon list, sky chart, and ISS passes all update. Zoom out to about 7 and the geostationary ring appears 35,786 km above the equator, exactly where every satellite dish is aimed. Switch to the South Pole view: polar-orbit satellites cross Antarctica every few minutes.</p>
   </section>
 
   <div class="two">
@@ -155,12 +162,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <script src="satellite.js"></script>
 <script src="tle.js"></script>
 <script src="coast.js"></script>
+<script src="globe3d.js"></script>
 <script>
 // Satellite names and owner codes come from CelesTrak's public catalog: escape them before inserting as HTML.
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 (function(){
-const S=satellite, D2R=Math.PI/180, R2D=180/Math.PI;
+const S=satellite, D2R=Math.PI/180, R2D=180/Math.PI, WE=7.2921159e-5; // WE: Earth's rotation rate, rad/s
 const $=id=>document.getElementById(id);
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
@@ -201,8 +209,12 @@ function propagateAll(now){
     s.ok=true;
     const g=S.eciToGeodetic(p,gmst);
     s.lat=g.latitude*R2D; s.lon=((g.longitude*R2D+540)%360)-180; s.alt=g.height;
-    const la=S.ecfToLookAngles(o,S.eciToEcf(p,gmst));
+    const ef=S.eciToEcf(p,gmst), la=S.ecfToLookAngles(o,ef);
     s.az=(la.azimuth*R2D+360)%360; s.el=la.elevation*R2D; s.rng=la.rangeSat;
+    // Earth-fixed position (km) and velocity (km/s) for the 3D globe: velocity is the orbital velocity turned into the
+    // rotating frame, minus the ground's own motion, so a dot can glide between the 2-second calculations.
+    s.ex=ef.x; s.ey=ef.y; s.ez=ef.z;
+    const v=pv.velocity; if(v&&isFinite(v.x)){const vf=S.eciToEcf(v,gmst); s.vx=vf.x+WE*ef.y; s.vy=vf.y-WE*ef.x; s.vz=vf.z;} else {s.vx=s.vy=s.vz=0;}
   }
 }
 function lookFrom(s,now,lat,lon){
@@ -240,7 +252,8 @@ function unproject(px,py,cx,cy,R){
   return [lat,((lon+540)%360)-180];
 }
 let picking=false;
-function drawMap(now){
+function drawMap(now){ if(use3d){ draw3d(now); return; } drawMap2d(now); }
+function drawMap2d(now){
   const c=$('globe'),x=c.getContext('2d'),W=c.width,H=c.height,cx=W/2,cy=H/2;
   const R=(W/2)/zoom*0.98;
   const col={starlink:css('--starlink'),nav:css('--nav'),geo:css('--geo'),big:css('--iss'),other:css('--other')};
@@ -287,25 +300,114 @@ function drawMap(now){
   // GEO ring label when zoomed out
   if(zoom>4){x.fillStyle=css('--geo');x.font='16px '+css('--mono');x.textAlign='center';x.fillText('geostationary ring · 35,786 km up · what every dish points at',cx,H-14);x.textAlign='left';}
 }
-// interaction
-(function(){
-  const c=$('globe');
-  const pos=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)/r.width*c.width,(e.clientY-r.top)/r.height*c.height];};
-  let downAt=null;
-  c.addEventListener('pointerdown',e=>{dragging=true;last=pos(e);downAt=pos(e);c.setPointerCapture(e.pointerId);c.style.cursor=picking?'crosshair':'grabbing';});
-  c.addEventListener('pointermove',e=>{if(!dragging)return;const p=pos(e);const k=90/((c.width/2)/zoom);rot.lon+= (p[0]-last[0])*k*0.7; rot.lat=Math.max(-89,Math.min(89,rot.lat+(p[1]-last[1])*k*0.7));last=p;spinning=false;$('spin').textContent='Resume spin';viewMode='free';drawMap(new Date());});
-  c.addEventListener('pointerup',e=>{dragging=false;c.style.cursor=picking?'crosshair':'grab';
-    const p=pos(e); if(!picking||!downAt||Math.hypot(p[0]-downAt[0],p[1]-downAt[1])>8)return;
-    const R=(c.width/2)/zoom*0.98; const ll=unproject(p[0],p[1],c.width/2,c.height/2,R); if(!ll)return;
-    $('lat').value=ll[0].toFixed(2);$('lon').value=ll[1].toFixed(2);$('preset').value='custom';readObs();
+// interaction (the same handlers serve the classic canvas and the 3D canvas)
+function bindGlobe(c,is3d){
+  // classic canvas works in its own 1200-unit space; the 3D canvas in CSS pixels
+  const pos=e=>{const r=c.getBoundingClientRect();return is3d?[e.clientX-r.left,e.clientY-r.top]:[(e.clientX-r.left)/r.width*c.width,(e.clientY-r.top)/r.height*c.height];};
+  const halfW=()=>is3d?c.getBoundingClientRect().width/2:c.width/2;
+  const pts=new Map(); let downAt=null, pinch=0, moved=false;
+  const setZoom=z=>{zoom=Math.max(1.15,Math.min(9,z));$('zoom').value=zoom;};
+  c.addEventListener('pointerdown',e=>{pts.set(e.pointerId,pos(e));try{c.setPointerCapture(e.pointerId);}catch(_){}
+    if(pts.size===1){dragging=true;last=pos(e);downAt=pos(e);moved=false;c.style.cursor=picking?'crosshair':'grabbing';}
+    else if(pts.size===2){const a=[...pts.values()];pinch=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);dragging=false;moved=true;}});
+  c.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;const p=pos(e);pts.set(e.pointerId,p);
+    if(pts.size===2){const a=[...pts.values()],d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);if(pinch>0&&d>0){setZoom(zoom*pinch/d);pinch=d;drawMap(new Date());}return;}
+    if(!dragging)return;const k=90/(halfW()/zoom);rot.lon-= (p[0]-last[0])*k*0.7*(is3d?1:-1); rot.lat=Math.max(-89,Math.min(89,rot.lat+(p[1]-last[1])*k*0.7));last=p;
+    if(downAt&&Math.hypot(p[0]-downAt[0],p[1]-downAt[1])>8)moved=true;
+    spinning=false;$('spin').textContent='Resume spin';viewMode='free';drawMap(new Date());});
+  const up=e=>{const had=pts.has(e.pointerId);pts.delete(e.pointerId);if(pts.size<2)pinch=0;if(pts.size)return;dragging=false;c.style.cursor=picking?'crosshair':'grab';
+    if(!had||e.type==='pointercancel')return;
+    const p=pos(e); if(!picking||!downAt||moved)return;
+    let ll; if(is3d){ll=g3&&g3.pick(p[0],p[1]);} else {const R=(c.width/2)/zoom*0.98; ll=unproject(p[0],p[1],c.width/2,c.height/2,R);} if(!ll)return;
+    $('lat').value=ll[0].toFixed(2);$('lon').value=(((ll[1]+540)%360)-180).toFixed(2);$('preset').value='custom';readObs();
     picking=false;$('pick').textContent='Tap the globe to set location';c.style.cursor='grab';
-    computePasses();tick();});
-  $('pick').addEventListener('click',()=>{picking=!picking;$('pick').textContent=picking?'Now tap your spot on the globe':'Tap the globe to set location';c.style.cursor=picking?'crosshair':'grab';if(picking){spinning=false;$('spin').textContent='Resume spin';}});
-  c.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(1.15,Math.min(9,zoom*(e.deltaY>0?1.08:0.925)));$('zoom').value=zoom;drawMap(new Date());},{passive:false});
+    computePasses();tick();};
+  c.addEventListener('pointerup',up);c.addEventListener('pointercancel',up);
+  c.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY>0?1.08:0.925));drawMap(new Date());},{passive:false});
+}
+(function(){
+  bindGlobe($('globe'),false); bindGlobe($('globe3d'),true);
+  const cur=()=>use3d?$('globe3d'):$('globe');
+  $('pick').addEventListener('click',()=>{picking=!picking;$('pick').textContent=picking?'Now tap your spot on the globe':'Tap the globe to set location';cur().style.cursor=picking?'crosshair':'grab';if(picking){spinning=false;$('spin').textContent='Resume spin';}});
   $('zoom').addEventListener('input',e=>{zoom=+e.target.value;drawMap(new Date());});
   $('spin').addEventListener('click',()=>{spinning=!spinning;$('spin').textContent=spinning?'Pause spin':'Resume spin';});
   $('view').addEventListener('change',e=>{viewMode=e.target.value;applyView();drawMap(new Date());});
-  $('trails').addEventListener('change',()=>drawMap(new Date()));
+  $('trails').addEventListener('change',()=>{trailDirty=true;drawMap(new Date());});
+})();
+// ---- 3D globe (globe3d.js). The default wherever the browser has WebGL2; the classic canvas is the fallback. ----
+let use3d=false, g3=null, trailDirty=true, tickAt=0, sun3=[1,0,0], col3=null, night3=0.42;
+const CAT3={other:0,starlink:1,nav:2,geo:3,big:4};
+const order3=sats.slice().sort((a,b)=>CAT3[a.cat]-CAT3[b.cat]); // drawn in this order, so the ISS, CSS and Hubble land on top
+order3.forEach(s=>{s.c3=CAT3[s.cat];});
+const ll3=(lat,lon,r)=>{const la=lat*D2R,lo=lon*D2R;return [r*Math.cos(la)*Math.cos(lo),r*Math.cos(la)*Math.sin(lo),r*Math.sin(la)];};
+const rgb=v=>{v=String(v).trim();let m=/^#([0-9a-f]{6})$/i.exec(v);if(m){const n=parseInt(m[1],16);return [(n>>16)/255,((n>>8)&255)/255,(n&255)/255];}
+  m=/^#([0-9a-f]{3})$/i.exec(v);if(m)return m[1].split('').map(h=>parseInt(h+h,16)/255);
+  m=/rgba?\(([^)]+)\)/.exec(v);if(m){const a=m[1].split(/[ ,]+/).map(parseFloat);return [a[0]/255,a[1]/255,a[2]/255];}return [0.5,0.5,0.5];};
+function colors3(){
+  const bg=rgb(css('--bg')), dark=(0.299*bg[0]+0.587*bg[1]+0.114*bg[2])<0.5;
+  night3=dark?0.55:0.72;
+  const ln=rgb(css('--line')),mu=rgb(css('--muted'));
+  col3={bg, line:ln.map((v,i)=>v*0.6+mu[i]*0.4), coast:rgb(css('--muted')), trail:rgb(css('--iss')), up:rgb(css('--up')),
+    ocean:dark?[0.055,0.105,0.235]:[0.80,0.86,0.95], land:dark?[0.19,0.255,0.37]:[0.93,0.93,0.885], glow:dark?[0.36,0.6,1]:[0.3,0.5,0.9],
+    cats:[rgb(css('--other')),rgb(css('--starlink')),rgb(css('--nav')),rgb(css('--geo')),rgb(css('--iss'))]};
+}
+function gfxNote(t){const n=$('gfxNote');n.hidden=!t;n.textContent=t||'';}
+function show3d(on){use3d=on;$('globe3d').hidden=!on;$('glabels').hidden=!on;$('globe').hidden=on;$('gfx').value=on?'3d':'2d';document.documentElement.dataset.gfx=on?'3d':'2d';}
+function start3d(){
+  if(!g3){
+    g3=window.Globe3D?window.Globe3D($('globe3d'),$('glabels'),window.COAST):null;
+    if(!g3){show3d(false);$('gfx').querySelector('[value="3d"]').disabled=true;gfxNote(window.Globe3D?'This browser cannot draw the 3D globe, so the classic globe is showing.':'');return false;} // no note when globe3d.js itself is absent (a copy of the page published without it)
+    g3.onLost=()=>{g3=null;show3d(false);$('gfx').querySelector('[value="3d"]').disabled=true;gfxNote('The 3D view stopped on this device, so the classic globe is showing.');drawMap(new Date());};
+  }
+  show3d(true);gfxNote('');trailDirty=true;return true;
+}
+function update3d(now){
+  if(!use3d||!g3)return;
+  colors3();
+  const minel=+$('minel').value||0;
+  for(const s of order3){const f=s.ok&&passFilter(s);s.hid3=!f;s.up3=f&&s.el>=minel;}
+  g3.setSats(order3);
+  tickAt=now.getTime();
+  const sn=S.eciToEcf(sunEci(now),S.gstime(now)),sl=Math.hypot(sn.x,sn.y,sn.z)||1;sun3=[sn.x/sl,sn.y/sl,sn.z/sl];
+  // ISS orbit, 46 minutes each side of now, in the Earth-fixed frame (the same ground-relative path the classic globe draws)
+  const tr=[];
+  if($('trails').value!=='none'&&iss){for(let m=-46;m<=46;m+=1){const t=new Date(now.getTime()+m*60000);const pv=S.propagate(iss.rec,t);if(!pv||!pv.position||!isFinite(pv.position.x))continue;const e=S.eciToEcf(pv.position,S.gstime(t));tr.push([e.x/RE,e.y/RE,e.z/RE]);}}
+  g3.setTrail(tr);trailDirty=false;
+}
+function labels3(dt){
+  const c=$('glabels'),x=c.getContext('2d'),r=c.getBoundingClientRect(),k=r.width?c.width/r.width:1;
+  x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,c.width,c.height);x.setTransform(k,0,0,k,0,0);
+  x.fillStyle=css('--fg');x.font='11px '+css('--body');x.textAlign='left';
+  for(const [n,la,lo] of cities){const p=g3.project(ll3(la,lo,1));if(!p)continue;x.beginPath();x.arc(p[0],p[1],1.9,0,6.283);x.fill();if(zoom<3)x.fillText(n,p[0]+4,p[1]-3);}
+  {const p=g3.project(ll3(obs.lat,obs.lon,1.002));if(p){x.strokeStyle=css('--accent');x.lineWidth=2;x.beginPath();x.arc(p[0],p[1],6,0,6.283);x.stroke();x.beginPath();x.moveTo(p[0]-10,p[1]);x.lineTo(p[0]+10,p[1]);x.moveTo(p[0],p[1]-10);x.lineTo(p[0],p[1]+10);x.stroke();}}
+  if(iss&&iss.ok&&!iss.hid3){const p=g3.project([(iss.ex+iss.vx*dt)/RE,(iss.ey+iss.vy*dt)/RE,(iss.ez+iss.vz*dt)/RE]);if(p){x.fillStyle=css('--iss');x.font='bold 13px '+css('--display');x.fillText('ISS',p[0]+7,p[1]+4);}}
+  if(zoom>4){x.fillStyle=css('--geo');x.font='11px '+css('--mono');x.textAlign='center';x.fillText('geostationary ring · 35,786 km up · what every dish points at',r.width/2,r.height-9);x.textAlign='left';}
+}
+function draw3d(){
+  if(!g3)return; if(!col3)colors3();
+  const dt=Math.max(0,Math.min(6,(Date.now()-tickAt)/1000));
+  g3.draw({rot,zoom,dt,sun:sun3,colors:col3,night:night3,ptScale:Math.min(1,Math.sqrt(1.6/zoom)+0.4)});
+  labels3(dt);
+}
+(function(){
+  let lastF=0,vis=true,acc=0,n=0,cap=2,count=0;
+  if('IntersectionObserver' in window)new IntersectionObserver(es=>{vis=es[0].isIntersecting;}).observe($('gwrap'));
+  function frame(t){
+    requestAnimationFrame(frame);
+    if(!use3d||!g3||document.hidden||(!vis&&count>=10)){lastF=0;return;} // the first few frames draw even off-screen, then drawing stops while the globe is scrolled away
+    const d=lastF?Math.min(100,t-lastF):16;lastF=t;
+    if(spinning&&!dragging)rot.lon+=0.25*d/40;
+    draw3d();
+    if(++count===8&&g3)document.documentElement.dataset.gfxDrawn=g3.sample()>1?'1':'0'; // one-time proof for the site check that the globe is not blank
+    // A phone that cannot keep up gets a lower drawing resolution, once, rather than a stuttering globe.
+    acc+=d;n++;if(n===90){if(acc/n>40&&cap>1){cap=1;g3.setScaleCap(1);}acc=0;n=0;}
+  }
+  requestAnimationFrame(frame);
+  let saved=null;try{saved=localStorage.getItem('gfx');}catch(e){}
+  $('gfx').addEventListener('change',e=>{const on=e.target.value==='3d';try{localStorage.setItem('gfx',on?'3d':'2d');}catch(_){}
+    if(on){if(start3d())update3d(new Date());}else{show3d(false);gfxNote('');}drawMap(new Date());});
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){spinning=false;$('spin').textContent='Resume spin';}
+  if(saved==='2d'||/[?&]2d=1/.test(location.search))show3d(false);else start3d();
 })();
 function applyView(){
   if(viewMode==='me'){rot.lat=obs.lat;rot.lon=obs.lon;}
@@ -313,7 +415,7 @@ function applyView(){
   else if(viewMode==='sp'){rot.lat=-89;}
   else if(viewMode==='geo'){rot.lat=0;zoom=7;$('zoom').value=7;}
 }
-setInterval(()=>{if(spinning&&!dragging){rot.lon+=0.25;drawMap(new Date());}},40);
+setInterval(()=>{if(!use3d&&spinning&&!dragging){rot.lon+=0.25;drawMap(new Date());}},40);
 function drawSky(){
   const c=$('sky'),x=c.getContext('2d'),W=c.width,H=c.height,cx=W/2,cy=H/2,R=W*0.44;
   const col={starlink:css('--starlink'),nav:css('--nav'),geo:css('--geo'),big:css('--iss'),other:css('--other')};
@@ -386,7 +488,7 @@ function computePasses(){
 function tick(){
   const now=new Date();
   $('sClock').textContent=now.toISOString().substr(11,8);
-  propagateAll(now); drawMap(now); drawSky(); fillList(); fillDish(now);
+  propagateAll(now); update3d(now); drawMap(now); drawSky(); fillList(); fillDish(now);
 }
 readObs(); applyView(); computePasses(); tick();
 setInterval(tick,2000);

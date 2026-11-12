@@ -9,7 +9,7 @@ Built as a public rebuttal tool: same orbital data and same math as every satell
 - **Data:** two-line element sets (TLEs) for the `active` group from [CelesTrak](https://celestrak.org), which republishes the U.S. Space Force catalog. Bundled as `tle.js` with the snapshot timestamp in `window.TLE_UPDATED`.
 - **Propagation:** SGP4 via [satellite.js](https://github.com/shashwatak/satellite-js) 7.1.0 (MIT), compiled to a single script in `satellite.js`.
 - **Coastlines:** simplified from [johan/world.geo.json](https://github.com/johan/world.geo.json) into `coast.js`.
-- **Rendering:** plain canvas 2D, no frameworks. Orthographic globe with drag-to-rotate, zoom, and pole/edge-on views; polar sky chart. 
+- **Rendering:** no frameworks. The globe is 3D (WebGL2, `globe3d.js`) wherever the browser supports it: satellites at true altitude in perspective, a day/night line from the sun's actual position, an atmosphere rim, drag to rotate and pinch to zoom. The classic 2D canvas globe is the automatic fallback and a choice in the Graphics menu. Polar sky chart in canvas 2D.
 
 ## Run it
 
