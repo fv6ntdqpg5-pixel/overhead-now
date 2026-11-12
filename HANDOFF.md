@@ -25,14 +25,14 @@
 - Tested in headless Chromium (software WebGL) on phone and desktop sizes, dark and light themes: tap-to-set-location, drag direction, wheel and pinch zoom, switching modes, reload remembering the choice. NOT tested on a real iPhone: real-device speed is Randy's to judge on the preview.
 - Closed Nov 11: the artifact copy and the weekly refresh task now include `globe3d.js` (see the entry above).
 
-## Nov 12, 2026: the light or dark look carries between desks (PREVIEW on branch `theme-carry`, waiting for Randy's Go)
+## Nov 12, 2026: the light or dark look carries between desks (LIVE Nov 12, 2026)
 Randy: if someone picks dark (or light) on one desk, every other desk they open should match; each desk keeps its own switch.
 - The sites are on different addresses, so a saved choice cannot be shared. Instead a small script (comment "Desk network: the
   light or dark look") adds `?theme=light|dark` to any link to another desk at the moment it is tapped, using the look the
-  visitor is seeing now. Each desk reads `?theme=` from its own address, saves it as that desk's choice and applies it before
-  the page paints.
+  visitor chose with a switch (Randy, Nov 12: "viewer choice ... carries through"). A visitor who never pressed a switch gets
+  each desk's own default. Each desk reads `?theme=` from its own address, saves it as that desk's choice and applies it
+  before the page paints.
 - Per desk: Wire & Ledger key `theme` (front page and editions, builder, about); Weather Desk `haztheme`; Outbreak Desk `obtheme`;
   Earth Desk and Vaccine Desk `deskTheme` plus a new "Light look / Dark look" button beside the credit line (they had no
   switch); Overhead Now has one dark look only, so it just remembers an incoming choice and passes it on.
-- Consequence: a visitor who never touched a switch on The Wire & Ledger (light by default) now gets the other desks in light
-  too, including the Weather Desk, whose own default is dark when opened directly.
+- LIVE Nov 12, 2026 on Randy's "Go on the look".
