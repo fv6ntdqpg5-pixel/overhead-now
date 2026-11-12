@@ -37,7 +37,7 @@ Randy: if someone picks dark (or light) on one desk, every other desk they open 
   switch); Overhead Now has one dark look only, so it just remembers an incoming choice and passes it on.
 - LIVE Nov 12, 2026 on Randy's "Go on the look".
 
-## Nov 12, 2026: zoom in ten times closer (PREVIEW on branch `zoom-in`, waiting for Randy's Go)
+## Nov 12, 2026: zoom in ten times closer (LIVE Nov 12, 2026 on Randy's Go)
 Randy: a full-screen Earth was as far as the globe zoomed in; he wants to pick out single satellites.
 - `zoom` is how many Earth-widths fit across the view (smaller is closer). The range was 1.15 to 9; it is now `ZMIN` 0.1 to
   `ZMAX` 9, so the closest view is about ten times closer than before. Pinch, scroll and the slider all reach it.
@@ -50,4 +50,4 @@ Randy: a full-screen Earth was as far as the globe zoomed in; he wants to pick o
   in emulation. Finger input now comes from touch events with the default cancelled (`TOUCH`, `tget`, `turn`, `tend` in
   `bindGlobe`), as on the Weather Desk: one finger turns, two fingers pinch and turn, a tap picks. The pointer handlers ignore
   `pointerType==='touch'` and still serve mouse and pen; a first pointer down clears leftovers. iPhone `gesturestart` is
-  cancelled so the page itself cannot be pinch-zoomed from the globe. **Only Randy's phone can confirm it.**
+  cancelled so the page itself cannot be pinch-zoomed from the globe. Randy confirmed on his phone that it works (preview, Nov 12).
