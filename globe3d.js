@@ -204,7 +204,8 @@
         // satellites, then the rings on the ones above the observer's horizon
         if (ptN) {
           var p = P.pt; gl.useProgram(p.p); gl.bindVertexArray(ptVao); gl.uniformMatrix4fv(p.u.mvp, false, m);
-          var ed = norm(cam.eye); gl.uniform3f(p.u.eyeDir, ed[0], ed[1], ed[2]); gl.uniform1f(p.u.dt, st.dt); gl.uniform1f(p.u.px, cam.dpr * Math.max(0.5, Math.min(1, cam.w / 720))); // dots and rings shrink with the canvas, as on the classic globe gl.uniform1f(p.u.ptScale, st.ptScale);
+          var ed = norm(cam.eye); gl.uniform3f(p.u.eyeDir, ed[0], ed[1], ed[2]); gl.uniform1f(p.u.dt, st.dt); gl.uniform1f(p.u.ptScale, st.ptScale);
+          gl.uniform1f(p.u.px, cam.dpr * Math.max(0.5, Math.min(1, cam.w / 720))); // dots and rings shrink with the canvas, as on the classic globe
           gl.uniform3fv(p.u.cols, new Float32Array([].concat.apply([], c.cats))); gl.uniform3fv(p.u.cUp, c.up);
           gl.uniform1f(p.u.ring, 0); gl.drawArrays(gl.POINTS, 0, ptN);
           gl.uniform1f(p.u.ring, 1); gl.drawArrays(gl.POINTS, 0, ptN);
