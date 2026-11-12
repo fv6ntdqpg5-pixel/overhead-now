@@ -439,16 +439,17 @@ function drawMap2d(now){
   if(zoom>4){x.fillStyle=css('--geo');x.font='16px '+css('--mono');x.textAlign='center';x.fillText('geostationary ring · 35,786 km up · what every dish points at',cx,H-120);x.textAlign='left';}
 }
 // interaction (the same handlers serve the classic canvas and the 3D canvas)
+const TOUCH=('ontouchstart' in window);
 function bindGlobe(c,is3d){
   // classic canvas works in its own 1200-unit space; the 3D canvas in CSS pixels
   const pos=e=>{const r=c.getBoundingClientRect();return is3d?[e.clientX-r.left,e.clientY-r.top]:[(e.clientX-r.left)/r.width*c.width,(e.clientY-r.top)/r.height*c.height];};
   const halfW=()=>is3d?c.getBoundingClientRect().width/2:c.width/2;
   const pts=new Map(); let downAt=null, pinch=0, moved=false;
   const setZoom=z=>{zoom=Math.max(ZMIN,Math.min(ZMAX,z));$('zoom').value=zToS(zoom);};
-  c.addEventListener('pointerdown',e=>{pts.set(e.pointerId,pos(e));try{c.setPointerCapture(e.pointerId);}catch(_){}
+  c.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'&&TOUCH)return;if(e.isPrimary)pts.clear();pts.set(e.pointerId,pos(e));try{c.setPointerCapture(e.pointerId);}catch(_){}
     if(pts.size===1){dragging=true;last=pos(e);downAt=pos(e);moved=false;c.style.cursor=picking?'crosshair':'grabbing';}
     else if(pts.size===2){const a=[...pts.values()];pinch=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);dragging=false;moved=true;}});
-  c.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;const p=pos(e);pts.set(e.pointerId,p);
+  c.addEventListener('pointermove',e=>{if(e.pointerType==='touch'&&TOUCH)return;if(!pts.has(e.pointerId))return;const p=pos(e);pts.set(e.pointerId,p);
     if(pts.size===2){const a=[...pts.values()],d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);if(pinch>0&&d>0){setZoom(zoom*pinch/d);pinch=d;drawMap(new Date());}return;}
     if(!dragging)return;const k=90/(halfW()/zoom);rot.lon-= (p[0]-last[0])*k*0.7*(is3d?1:-1); rot.lat=Math.max(-89,Math.min(89,rot.lat+(p[1]-last[1])*k*0.7));last=p;
     if(downAt&&Math.hypot(p[0]-downAt[0],p[1]-downAt[1])>8)moved=true;
@@ -462,6 +463,27 @@ function bindGlobe(c,is3d){
     picking=false;$('pick').textContent='Tap the globe to set location';c.style.cursor='grab';
     computePasses();tick();};
   c.addEventListener('pointerup',up);c.addEventListener('pointercancel',up);
+  // Fingers turn and zoom the globe through touch events, with the browser's own handling cancelled. On iPhones the
+  // pointer-event route let the browser keep part of the gesture (page zoom, page drag, pull to refresh), which left the
+  // globe stuck after zooming in (Randy, Nov 12). A mouse or pen still uses the pointer handlers above.
+  let tprev=new Map(),tstart=null,tmoved=false,tmulti=false;
+  const tget=e=>{const m=new Map();for(const t of e.touches)m.set(t.identifier,pos(t));return m;};
+  const turn=(dx,dy)=>{const k=90/(halfW()/zoom);rot.lon-=dx*k*0.7*(is3d?1:-1);rot.lat=Math.max(-89,Math.min(89,rot.lat+dy*k*0.7));};
+  c.addEventListener('touchstart',e=>{if(e.cancelable)e.preventDefault();const m=tget(e);if(m.size===1){tstart=[...m.values()][0];tmoved=false;tmulti=false;}else tmulti=true;tprev=m;},{passive:false});
+  c.addEventListener('touchmove',e=>{if(e.cancelable)e.preventDefault();const m=tget(e),ids=[...m.keys()].filter(k=>tprev.has(k));
+    if(ids.length===1){const a=m.get(ids[0]),b=tprev.get(ids[0]);turn(a[0]-b[0],a[1]-b[1]);if(tstart&&Math.hypot(a[0]-tstart[0],a[1]-tstart[1])>(is3d?10:30))tmoved=true;}
+    else if(ids.length>=2){const a1=m.get(ids[0]),a2=m.get(ids[1]),b1=tprev.get(ids[0]),b2=tprev.get(ids[1]),d1=Math.hypot(a1[0]-a2[0],a1[1]-a2[1]),d0=Math.hypot(b1[0]-b2[0],b1[1]-b2[1]);
+      if(d0>4&&d1>4)setZoom(zoom*d0/d1);turn((a1[0]+a2[0]-b1[0]-b2[0])/2,(a1[1]+a2[1]-b1[1]-b2[1])/2);tmulti=true;}
+    else{tprev=m;return;}
+    tprev=m;if(tmoved||tmulti){spinning=false;$('spin').textContent='Resume spin';viewMode='free';}drawMap(new Date());},{passive:false});
+  const tend=e=>{if(e.cancelable)e.preventDefault();const m=tget(e);tprev=m;if(m.size)return;const p=tstart;tstart=null;if(e.type!=='touchend'||!p||tmoved||tmulti)return;
+    if(!picking){select(pickSat(p,is3d,c),false);return;}
+    let ll; if(is3d){ll=g3&&g3.pick(p[0],p[1]);} else {const R=(c.width/2)/zoom*0.98; ll=unproject(p[0],p[1],c.width/2,c.height/2,R);} if(!ll)return;
+    $('lat').value=ll[0].toFixed(2);$('lon').value=(((ll[1]+540)%360)-180).toFixed(2);$('preset').value='custom';readObs();
+    picking=false;$('pick').textContent='Tap the globe to set location';c.style.cursor='grab';
+    computePasses();tick();};
+  c.addEventListener('touchend',tend,{passive:false});c.addEventListener('touchcancel',tend,{passive:false});
+  ['gesturestart','gesturechange'].forEach(t=>c.addEventListener(t,e=>e.preventDefault())); // iPhone's own pinch-to-zoom of the whole page
   c.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY>0?1.08:0.925));drawMap(new Date());},{passive:false});
 }
 (function(){

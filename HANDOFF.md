@@ -46,3 +46,8 @@ Randy: a full-screen Earth was as far as the globe zoomed in; he wants to pick o
   the lens narrows (`cam.fov`), so it never ends up inside the shell of low satellites. `pick` uses the same lens.
 - Dots grow a little when zoomed in (`ptK()`, capped at 1.7), and the auto-spin slows in proportion so a satellite does not
   race out of view. Tap tolerance is unchanged (24 px); at close zoom the dots are far enough apart for it.
+- Same day: Randy on his iPhone (inside the Claude app) reported "can't move the map around when zoomed in". Not reproducible
+  in emulation. Finger input now comes from touch events with the default cancelled (`TOUCH`, `tget`, `turn`, `tend` in
+  `bindGlobe`), as on the Weather Desk: one finger turns, two fingers pinch and turn, a tap picks. The pointer handlers ignore
+  `pointerType==='touch'` and still serve mouse and pen; a first pointer down clears leftovers. iPhone `gesturestart` is
+  cancelled so the page itself cannot be pinch-zoomed from the globe. **Only Randy's phone can confirm it.**
