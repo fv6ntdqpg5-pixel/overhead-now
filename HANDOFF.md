@@ -51,3 +51,9 @@ Randy: a full-screen Earth was as far as the globe zoomed in; he wants to pick o
   `bindGlobe`), as on the Weather Desk: one finger turns, two fingers pinch and turn, a tap picks. The pointer handlers ignore
   `pointerType==='touch'` and still serve mouse and pen; a first pointer down clears leftovers. iPhone `gesturestart` is
   cancelled so the page itself cannot be pinch-zoomed from the globe. Randy confirmed on his phone that it works (preview, Nov 12).
+
+## Copy protection (Nov 15, 2026)
+- Vercel no longer serves the build files or these notes. They're listed in `.vercelignore`, so only the page and the files it loads are public.
+- The page has the BIG domain lock and watermark: a `<!--BIGLOCK-->` block added by `tools/lock.py`, allowed on overhead-now.vercel.app, the vercel.app previews and claude.ai. Anywhere else, an "Unlicensed copy" overlay covers the page after 30 s. Watermark: `window.__BIGW = sha256('BIG|(c) 2026 Randy Barnhill|overhead|f58511e294ed')`.
+- index.html is hand-edited: after an edit, run `BIGBUILD=f58511e294ed python3 tools/lock.py overhead overhead-now.vercel.app index.html` (idempotent).
+- This deters copying; it doesn't stop it. Someone who knows what they're doing can strip the block. The proof of copying is the watermark plus the LICENSE.
