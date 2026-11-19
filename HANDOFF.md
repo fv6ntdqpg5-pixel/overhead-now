@@ -1,5 +1,19 @@
 # Overhead Now: handoff notes
 
+## Open work (read before changing anything; keep it current)
+
+More than one Claude works on Randy's sites (the Claude app and Claude Duet), and they cannot message each other. This
+list is how they stay out of each other's way. Rules, agreed with Randy on Nov 19, 2026:
+- **Before you change this site:** read this list. If a line covers what you are about to touch, stop and ask Randy.
+- **When you start work:** add a line (what, which branch, who, date). **When it is live or dropped:** remove the line.
+- **Every change goes on a preview first and goes live only on Randy's "Go".** One agent at a time on this site.
+
+In flight now:
+- **Weekly orbit refresh:** the snapshot was 8.1 days old on Nov 12, so the weekly refresh may have missed a run. Not investigated.
+
+---
+
+
 © 2026 Randy Barnhill. All rights reserved. Built with Claude.
 
 ## Nov 11, 2026 (late): mission-control redesign, all 7 items, with the 3D globe (LIVE Nov 11 on Randy's Go, merge cba96ff)
