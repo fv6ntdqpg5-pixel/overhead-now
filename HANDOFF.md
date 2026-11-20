@@ -98,3 +98,11 @@ refresh into the site's own GitHub job, he said "Can you do option 2".
 **Not covered by the job, open:** the claude.ai artifact copy (D3bcSL4V9tMnJvrqjs5yyC). A GitHub job cannot republish an
 artifact. The scheduled task "Overhead Now weekly refresh" was NOT changed or paused (Randy's rule: ask first); it is
 still on and may still refresh the artifact. Randy to decide: keep it for the artifact only, or pause it.
+
+**First runs on the branch (Nov 20):** from GitHub, CelesTrak answered too slowly to use (the first run sat over six
+minutes on it; the second cut it off at the 120-second limit with a third of the file received), so both fell back to
+the mirror: 15,851 satellites, elements fetched 07:25 UTC, page check passed, `tle.js` committed by the job, preview
+deployed. Expect the mirror to be the working source in practice; CelesTrak stays first in case it speeds up. The
+download now has a hard 120-second limit per file (curl), because Python's own timeout did not stop a slow trickle.
+The pushes for this branch used --no-verify: the pre-push check fails on the very staleness this work fixes.
+
