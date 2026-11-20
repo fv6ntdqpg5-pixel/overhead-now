@@ -15,7 +15,7 @@ window.TLE_UPDATED is the time the elements were fetched from CelesTrak: now for
 timestamp for source 2.
 (c) 2026 Randy Barnhill. All rights reserved.
 """
-import datetime, hashlib, json, os, re, subprocess, sys, tempfile, urllib.request
+import datetime, hashlib, json, os, re, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UA = {'User-Agent': 'OverheadNow-refresh/1.0 (+https://overhead-now.vercel.app)'}
@@ -26,9 +26,14 @@ MIN_SATS, MAX_SATS, MAX_ISS_AGE_DAYS, MAX_MIRROR_AGE_DAYS = 14000, 20000, 5, 3
 UTC = datetime.timezone.utc
 
 
-def get(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=90) as r:
-        return r.read()
+def get(url, limit=120):
+    """Fetch a URL with a hard limit on the whole download. curl is used because Python's own timeout only covers each
+    read, and on the first run from GitHub (Nov 20, 2026) CelesTrak held the connection open for over six minutes."""
+    r = subprocess.run(['curl', '-sS', '--fail', '--location', '--connect-timeout', '20', '--max-time', str(limit),
+                        '-A', UA['User-Agent'], url], capture_output=True)
+    if r.returncode:
+        raise IOError('no answer within %ds (%s)' % (limit, r.stderr.decode('utf-8', 'replace').strip()[:120] or 'curl exit %d' % r.returncode))
+    return r.stdout
 
 
 def from_celestrak(d):
