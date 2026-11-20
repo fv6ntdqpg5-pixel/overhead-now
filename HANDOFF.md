@@ -9,7 +9,7 @@ list is how they stay out of each other's way. Rules, agreed with Randy on Nov 1
 - **Every change goes on a preview first and goes live only on Randy's "Go".** One agent at a time on this site.
 
 In flight now:
-- **Weekly orbit refresh:** the snapshot was 8.1 days old on Nov 12, so the weekly refresh may have missed a run. Not investigated.
+- **Orbit refresh moved into a GitHub job:** branch `orbit-refresh-job`, Claude app, Nov 20. ON A PREVIEW, NOT LIVE, waiting on Randy's Go. Adds `tools/refresh_tle.py` and `.github/workflows/orbit-refresh.yml`; the only site file it changes is `tle.js`. See "Orbit refresh job" at the end of this file. Before merging: take `orbit-refresh-job` out of the workflow's branch list.
 
 ---
 
@@ -71,3 +71,30 @@ Randy: a full-screen Earth was as far as the globe zoomed in; he wants to pick o
 - The page has the BIG domain lock and watermark: a `<!--BIGLOCK-->` block added by `tools/lock.py`, allowed on overhead-now.vercel.app, the vercel.app previews and claude.ai. Anywhere else, an "Unlicensed copy" overlay covers the page after 30 s. Watermark: `window.__BIGW = sha256('BIG|(c) 2026 Randy Barnhill|overhead|f58511e294ed')`.
 - index.html is hand-edited: after an edit, run `BIGBUILD=f58511e294ed python3 tools/lock.py overhead overhead-now.vercel.app index.html` (idempotent).
 - This deters copying; it doesn't stop it. Someone who knows what they're doing can strip the block. The proof of copying is the watermark plus the LICENSE.
+
+## Orbit refresh job (Nov 20, 2026) — branch `orbit-refresh-job`, preview only until Randy's Go
+
+**What happened:** on Nov 20 the site check emailed Randy "orbit data snapshot is 15.8 days old (limit 9.0 days)". The
+live `tle.js` was still the Nov 4 one. The Claude scheduled task "Overhead Now weekly refresh" was on and had fired on
+Nov 9 and Nov 16, but nothing from it reached this repo, and it leaves no run record to read, so the cause is not
+known. It was not the data: the task's own steps run by hand on Nov 20 worked (mirror fresh, checksums good, 15,851
+satellites, page check passed). The same thing happened on Oct 26 and Nov 2.
+
+**Randy's words:** asked "What's going on with. Overhead now"; offered (1) publish a hand refresh now or (2) move the
+refresh into the site's own GitHub job, he said "Can you do option 2".
+
+**What it is:**
+- `tools/refresh_tle.py`: fetches the "active" elements and the satellite catalog from CelesTrak; if CelesTrak does not
+  answer, from the public GitHub mirror caelo-works/tle-mirror (checksums verified, refused if over 3 days old). Builds
+  `tle.js` with `build_tle.py`. Refuses the result unless it has 14,000 to 20,000 satellites, the ISS is present with
+  owner "ISS", and the ISS elements are under 5 days old. On any failure `tle.js` is put back as it was and the script
+  exits with an error. Nothing is ever filled in by hand.
+- `.github/workflows/orbit-refresh.yml`: Mondays and Thursdays at 12:52 UTC, and when the workflow or the script
+  changes. Runs the script, then the site's page check on the new file, then commits `tle.js` as the owner's account
+  (so Vercel deploys it). A failure commits nothing and GitHub emails Randy.
+- **Twice a week, not once (my choice, tell Randy):** the staleness limit is 9 days, so with one run a week a single
+  missed run trips the alarm. Two runs give a spare.
+
+**Not covered by the job, open:** the claude.ai artifact copy (D3bcSL4V9tMnJvrqjs5yyC). A GitHub job cannot republish an
+artifact. The scheduled task "Overhead Now weekly refresh" was NOT changed or paused (Randy's rule: ask first); it is
+still on and may still refresh the artifact. Randy to decide: keep it for the artifact only, or pause it.
