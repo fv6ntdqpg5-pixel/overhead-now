@@ -9,7 +9,7 @@ list is how they stay out of each other's way. Rules, agreed with Randy on Nov 1
 - **Every change goes on a preview first and goes live only on Randy's "Go".** One agent at a time on this site.
 
 In flight now:
-- **Orbit refresh moved into a GitHub job:** branch `orbit-refresh-job`, Claude app, Nov 20. ON A PREVIEW, NOT LIVE, waiting on Randy's Go. Adds `tools/refresh_tle.py` and `.github/workflows/orbit-refresh.yml`; the only site file it changes is `tle.js`. See "Orbit refresh job" at the end of this file. Before merging: take `orbit-refresh-job` out of the workflow's branch list.
+- Nothing in flight.
 
 ---
 
@@ -72,7 +72,7 @@ Randy: a full-screen Earth was as far as the globe zoomed in; he wants to pick o
 - index.html is hand-edited: after an edit, run `BIGBUILD=f58511e294ed python3 tools/lock.py overhead overhead-now.vercel.app index.html` (idempotent).
 - This deters copying; it doesn't stop it. Someone who knows what they're doing can strip the block. The proof of copying is the watermark plus the LICENSE.
 
-## Orbit refresh job (Nov 20, 2026) — branch `orbit-refresh-job`, preview only until Randy's Go
+## Orbit refresh job (LIVE Nov 20, 2026, ~9:00 am ET)
 
 **What happened:** on Nov 20 the site check emailed Randy "orbit data snapshot is 15.8 days old (limit 9.0 days)". The
 live `tle.js` was still the Nov 4 one. The Claude scheduled task "Overhead Now weekly refresh" was on and had fired on
@@ -95,9 +95,10 @@ refresh into the site's own GitHub job, he said "Can you do option 2".
 - **Twice a week, not once (my choice, tell Randy):** the staleness limit is 9 days, so with one run a week a single
   missed run trips the alarm. Two runs give a spare.
 
-**Not covered by the job, open:** the claude.ai artifact copy (D3bcSL4V9tMnJvrqjs5yyC). A GitHub job cannot republish an
-artifact. The scheduled task "Overhead Now weekly refresh" was NOT changed or paused (Randy's rule: ask first); it is
-still on and may still refresh the artifact. Randy to decide: keep it for the artifact only, or pause it.
+**Go (Nov 20):** Randy: "Go / And, let the artifact scheduled tasking go". Merged to main. The Claude scheduled task
+"Overhead Now weekly refresh" was PAUSED the same morning on his word (not deleted). The claude.ai artifact copy
+(D3bcSL4V9tMnJvrqjs5yyC) is therefore no longer refreshed and will drift; the public site is the copy that is kept
+current. Do not turn the task back on without asking him.
 
 **First runs on the branch (Nov 20):** from GitHub, CelesTrak answered too slowly to use (the first run sat over six
 minutes on it; the second cut it off at the 120-second limit with a third of the file received), so both fell back to
