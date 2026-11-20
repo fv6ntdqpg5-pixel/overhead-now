@@ -1,0 +1,44 @@
+# Orbit refresh for Overhead Now: every Monday and Thursday at 12:52 UTC (6:52 AM Central in winter; GitHub can start a
+# few minutes late). Fetches the current satellite elements (tools/refresh_tle.py: CelesTrak, or its public GitHub
+# mirror if CelesTrak does not answer), rebuilds tle.js, runs the site's own page check on the result, and commits it.
+# Vercel then deploys it. If no sound catalog can be fetched, or the page check fails, nothing is committed and this
+# run FAILS, which makes GitHub email the account owner.
+# Why this exists (Randy, Nov 20, 2026): the weekly refresh used to be a Claude scheduled task, and three times its
+# new file never reached this repo (Oct 26, Nov 2, then Nov 9 and 16), leaving the public site on old orbits for two
+# weeks each time. A job that lives in the repo needs no outside session to push for it.
+# (c) 2026 Randy Barnhill. All rights reserved.
+name: orbit-refresh
+on:
+  schedule:
+    - cron: '52 12 * * 1,4'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/orbit-refresh.yml', 'tools/refresh_tle.py']
+permissions:
+  contents: write
+concurrency: { group: 'orbit-refresh-${{ github.ref_name }}', cancel-in-progress: false }
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Fetch the elements and rebuild tle.js
+        run: python3 tools/refresh_tle.py
+      - name: Check the page with the new data
+        run: |
+          npm i --no-save --silent playwright-core@1.48.2
+          CHROME=$(which google-chrome || which chromium) node tools/sitecheck.mjs
+      - name: Commit
+        run: |
+          # Commit as the repository owner's GitHub account (its private noreply address): Vercel only deploys commits
+          # by the account owner.
+          git config user.name "fv6ntdqpg5-pixel"
+          git config user.email "279122844+fv6ntdqpg5-pixel@users.noreply.github.com"
+          git add tle.js
+          if git diff --cached --quiet; then echo "No change in the catalog."; exit 0; fi
+          git commit -m "Catalog refresh $(date -u +%F)"
+          for i in 1 2 3; do git pull --rebase origin "${{ github.ref_name }}" && git push && break; sleep 5; done
