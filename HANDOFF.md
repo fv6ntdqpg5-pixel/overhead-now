@@ -107,3 +107,9 @@ deployed. Expect the mirror to be the working source in practice; CelesTrak stay
 download now has a hard 120-second limit per file (curl), because Python's own timeout did not stop a slow trickle.
 The pushes for this branch used --no-verify: the pre-push check fails on the very staleness this work fixes.
 
+## Earth Desk link removed from the Desks row (LIVE Nov 27, 2026 ~10:20 am CT; Randy: "Go")
+The Earth Desk (the-ledger-of-the-earth) was idled on Nov 27, 2026: Randy said its data is the hardest to get right and it stays in its repo "for future use and refinement". Asked whether the other desks should stop linking to it, he said: "Yes - remove the links for now".
+- The Earth Desk link is out of this site's Desks row. Where this repo has a site check (`tools/sitecheck.mjs`), the Earth Desk is out of its list of sister sites, or the check would fail for a link that was removed on purpose.
+- Its host stays in the look-carrying script's host list on purpose (harmless, and one less edit when the desk returns).
+- To put it back: restore the link (and the sister-site entry) from git history; the Earth Desk repo's MAINTAIN.md has the rest.
+
