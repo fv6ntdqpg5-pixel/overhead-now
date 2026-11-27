@@ -9,6 +9,7 @@ list is how they stay out of each other's way. Rules, agreed with Randy on Nov 1
 - **Every change goes on a preview first and goes live only on Randy's "Go".** One agent at a time on this site.
 
 In flight now:
+- **Earth Desk link removed from the Desks row:** branch `earth-desk-off`, preview only, waiting on Randy's "Go". Claude app, Nov 27, 2026.
 - Nothing in flight.
 
 ---
@@ -106,4 +107,10 @@ the mirror: 15,851 satellites, elements fetched 07:25 UTC, page check passed, `t
 deployed. Expect the mirror to be the working source in practice; CelesTrak stays first in case it speeds up. The
 download now has a hard 120-second limit per file (curl), because Python's own timeout did not stop a slow trickle.
 The pushes for this branch used --no-verify: the pre-push check fails on the very staleness this work fixes.
+
+## Earth Desk link removed from the Desks row (Nov 27, 2026; branch `earth-desk-off`, waiting on Randy's "Go")
+The Earth Desk (the-ledger-of-the-earth) was idled on Nov 27, 2026: Randy said its data is the hardest to get right and it stays in its repo "for future use and refinement". Asked whether the other desks should stop linking to it, he said: "Yes - remove the links for now".
+- The Earth Desk link is out of this site's Desks row. Where this repo has a site check (`tools/sitecheck.mjs`), the Earth Desk is out of its list of sister sites, or the check would fail for a link that was removed on purpose.
+- Its host stays in the look-carrying script's host list on purpose (harmless, and one less edit when the desk returns).
+- To put it back: restore the link (and the sister-site entry) from git history; the Earth Desk repo's MAINTAIN.md has the rest.
 
